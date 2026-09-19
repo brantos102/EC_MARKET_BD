@@ -1,19 +1,29 @@
 import { supabase } from './supabaseClient.js';
 import { normalizarCodigoEscaneado } from './lib/ean13.js';
-import { calcularLinea, calcularImpuesto, totalizarCarrito } from './lib/pricing.js';
 import { abrirModal, cerrarModal } from './lib/modal.js';
 import { traducirErrorSupabase } from './lib/errores.js';
 import { abrirPanel } from './lib/panel.js';
+import { autocompletar } from './lib/autocomplete.js';
+import { fijarCatalogo, actualizarPanelVenta } from './lib/panel-venta.js';
+import {
+  configurar, fijarTipoVenta, agregar, cambiarCantidad, vaciar,
+  lineasCalculadas, totales, obtenerEstado, actualizarStock, suscribir,
+} from './lib/venta-activa.js';
 
-// Canal de tiempo real activo. Se guarda fuera de la función para poder
-// cerrarlo cuando el operador sale del punto de venta: dejar canales
-// abiertos al navegar acumula suscripciones y consume cuota de Supabase.
+// Canal de tiempo real activo. Se cierra al salir del punto de venta
+// para no acumular suscripciones al navegar.
 let canalStock = null;
+let catalogo = [];
+let desuscribir = null;
 
 export function cerrarCanalPOS() {
   if (canalStock) {
     supabase.removeChannel(canalStock);
     canalStock = null;
+  }
+  if (desuscribir) {
+    desuscribir();
+    desuscribir = null;
   }
 }
 
@@ -22,18 +32,17 @@ export async function renderPOS(container) {
     <div class="pos-layout">
       <div class="pos-izquierda">
         <div class="panel pos-scan-panel">
-          <label for="pos-scan" class="scan-label">Escanear producto</label>
+          <label for="pos-scan" class="scan-label">Escanear o buscar producto</label>
           <input type="text" id="pos-scan" class="scan-input"
-                 placeholder="Pase el lector o escriba el código / nombre" autocomplete="off" autofocus />
+                 placeholder="Pase el lector, o escriba código / nombre / marca" autocomplete="off" />
           <div id="pos-scan-msg" class="form-msg"></div>
-          <div id="pos-sugerencias" class="sugerencias"></div>
         </div>
 
         <div class="panel">
           <div class="pos-carrito-head">
             <h3>Carrito</h3>
             <div class="tipo-venta-switch">
-              <label><input type="radio" name="tipo-venta" value="MENOR" checked /> Al detalle</label>
+              <label><input type="radio" name="tipo-venta" value="MENOR" /> Al detalle</label>
               <label><input type="radio" name="tipo-venta" value="MAYOR" /> Por mayor</label>
             </div>
           </div>
@@ -76,14 +85,8 @@ export async function renderPOS(container) {
     </div>
   `;
 
-  // ----- Estado -----
-  let carrito = [];       // { producto, cantidad, calculo, impuesto }
-  let tipoVenta = 'MENOR';
-  let bodegaId = null;
-
   const scan = container.querySelector('#pos-scan');
   const scanMsg = container.querySelector('#pos-scan-msg');
-  const sugerencias = container.querySelector('#pos-sugerencias');
   const posMsg = container.querySelector('#pos-msg');
 
   // ----- Carga de datos -----
@@ -91,11 +94,11 @@ export async function renderPOS(container) {
     supabase.from('bodegas').select('id, nombre').eq('activa', true).order('nombre'),
     supabase.from('clientes').select('id, identificacion, nombre').eq('activo', true).order('nombre'),
     supabase.from('promociones')
-      .select('id, nombre, tipo, cantidad, valor, aplica_tipo_venta, prioridad, vigencia_desde, vigencia_hasta, promocion_alcance(producto_id, categoria_id)')
+      .select('id, nombre, tipo, cantidad, valor, aplica_tipo_venta, prioridad, activa, vigencia_desde, vigencia_hasta, promocion_alcance(producto_id, categoria_id)')
       .eq('activa', true),
   ]);
 
-  bodegaId = bodegas?.[0]?.id ?? null;
+  const bodegaId = obtenerEstado().bodegaId ?? bodegas?.[0]?.id ?? null;
 
   const selCliente = container.querySelector('#pos-cliente');
   (clientes ?? []).forEach((c) => {
@@ -104,215 +107,121 @@ export async function renderPOS(container) {
     o.textContent = `${c.nombre} (${c.identificacion})`;
     selCliente.appendChild(o);
   });
+  if (obtenerEstado().clienteId) selCliente.value = obtenerEstado().clienteId;
 
   const { data: productos, error: errProductos } = await supabase
-    .from('v_pos_productos')
-    .select('*')
-    .eq('bodega_id', bodegaId);
+    .from('v_pos_productos').select('*').eq('bodega_id', bodegaId);
 
   if (errProductos) {
     container.innerHTML = traducirErrorSupabase(errProductos, 'v_pos_productos');
     return;
   }
 
+  catalogo = productos ?? [];
+  fijarCatalogo(() => catalogo);
+  configurar({ bodegaId, clienteId: selCliente.value, promos: promos ?? [] });
+
   container.querySelector('#pos-consulta').addEventListener('click', () => abrirPanel());
+  selCliente.addEventListener('change', () => configurar({ clienteId: selCliente.value }));
 
-  const hoy = new Date().toISOString().slice(0, 10);
-  const promosVigentes = (promos ?? []).filter(
-    (p) => p.vigencia_desde <= hoy && p.vigencia_hasta >= hoy
-  );
+  // Marcar el tipo de venta que ya tenía la venta en curso
+  const tipoActual = obtenerEstado().tipoVenta;
+  container.querySelector(`input[name="tipo-venta"][value="${tipoActual}"]`).checked = true;
 
-  function promoPara(producto) {
-    const candidatas = promosVigentes.filter((p) => {
-      if (p.aplica_tipo_venta !== 'AMBAS' && p.aplica_tipo_venta !== tipoVenta) return false;
-      return (p.promocion_alcance ?? []).some(
-        (a) => a.producto_id === producto.producto_id || a.categoria_id === producto.categoria_id
-      );
-    });
-    candidatas.sort((a, b) => b.prioridad - a.prioridad);
-    return candidatas[0] ?? null;
-  }
-
-  // ----- Búsqueda / escaneo -----
-  function buscarProducto(texto) {
-    const limpio = texto.trim();
-    if (!limpio) return [];
-    const ean = normalizarCodigoEscaneado(limpio);
-    if (ean) {
-      const exacto = (productos ?? []).find((p) => p.ean13 === ean);
-      if (exacto) return [exacto];
-    }
-    const lower = limpio.toLowerCase();
-    return (productos ?? []).filter(
-      (p) =>
-        p.codigo?.toLowerCase() === lower ||
-        p.ean13 === limpio ||
-        p.nombre?.toLowerCase().includes(lower) ||
-        p.marca?.toLowerCase().includes(lower)
-    ).slice(0, 8);
-  }
-
-  scan.addEventListener('input', () => {
-    const texto = scan.value.trim();
-    if (texto.length < 2) {
-      sugerencias.innerHTML = '';
-      return;
-    }
-    const encontrados = buscarProducto(texto);
-    sugerencias.innerHTML = encontrados
-      .map(
-        (p) => `<button class="sugerencia" data-id="${p.producto_id}">
-          <span class="sug-nombre">${p.nombre}${p.marca ? ` · ${p.marca}` : ''}</span>
-          <span class="sug-meta">${p.codigo} · ${p.ubicacion ?? 'sin ubicación'} · stock ${Number(p.stock).toFixed(2)} ${p.unidad}</span>
-          <span class="sug-precio">$${Number(p.precio_venta_menor).toFixed(2)}</span>
-        </button>`
-      )
-      .join('');
-    sugerencias.querySelectorAll('.sugerencia').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        agregar((productos ?? []).find((p) => p.producto_id === btn.dataset.id));
-        scan.value = '';
-        sugerencias.innerHTML = '';
-        scan.focus();
-      });
-    });
-  });
-
-  scan.addEventListener('keydown', (e) => {
-    if (e.key !== 'Enter') return;
-    e.preventDefault();
-    const encontrados = buscarProducto(scan.value);
-    if (encontrados.length === 0) {
-      scanMsg.textContent = `No se encontró "${scan.value.trim()}"`;
-      scanMsg.className = 'form-msg error';
-    } else {
-      agregar(encontrados[0]);
+  // ----- Autocompletado sobre el campo de escaneo -----
+  autocompletar(scan, {
+    items: () => catalogo,
+    texto: (p) => `${p.nombre}${p.marca ? ` · ${p.marca}` : ''}`,
+    secundario: (p) =>
+      `${p.codigo}${p.ean13 ? ` · ${p.ean13}` : ''} · ${p.ubicacion ?? 's/ubicación'} · ` +
+      `stock ${Number(p.stock).toFixed(2)} ${p.unidad ?? ''} · $${Number(p.precio_venta_menor).toFixed(2)}`,
+    valor: (p) => p.producto_id,
+    coincideExacto: (p, texto) => {
+      const ean = normalizarCodigoEscaneado(texto);
+      return (ean && p.ean13 === ean) || p.codigo?.toLowerCase() === texto.toLowerCase();
+    },
+    alElegir: (producto) => {
+      const r = agregar(producto);
+      scanMsg.textContent = r.mensaje ?? '';
+      scanMsg.className = `form-msg ${r.ok ? 'ok' : 'error'}`;
       scan.value = '';
-      sugerencias.innerHTML = '';
-    }
+      delete scan.dataset.valor;
+      scan.classList.remove('ac-elegido');
+      scan.focus();
+    },
   });
 
-  function agregar(producto) {
-    if (!producto) return;
-
-    const existente = carrito.find((l) => l.producto.producto_id === producto.producto_id);
-    const cantidadNueva = (existente?.cantidad ?? 0) + 1;
-
-    if (cantidadNueva > Number(producto.stock)) {
-      scanMsg.textContent = `Stock insuficiente de "${producto.nombre}": quedan ${Number(producto.stock).toFixed(2)} ${producto.unidad}`;
-      scanMsg.className = 'form-msg error';
-      return;
-    }
-
-    if (existente) {
-      existente.cantidad = cantidadNueva;
-    } else {
-      carrito.push({ producto, cantidad: 1 });
-    }
-    scanMsg.textContent = `${producto.nombre} agregado`;
-    scanMsg.className = 'form-msg ok';
-    pintar();
-  }
-
-  function cambiarCantidad(productoId, cantidad) {
-    const linea = carrito.find((l) => l.producto.producto_id === productoId);
-    if (!linea) return;
-    if (cantidad <= 0) {
-      carrito = carrito.filter((l) => l.producto.producto_id !== productoId);
-    } else if (cantidad > Number(linea.producto.stock)) {
-      scanMsg.textContent = `Stock insuficiente: quedan ${Number(linea.producto.stock).toFixed(2)}`;
-      scanMsg.className = 'form-msg error';
-      return;
-    } else {
-      linea.cantidad = cantidad;
-    }
-    pintar();
-  }
-
+  // ----- Pintado -----
   function pintar() {
     const tbody = container.querySelector('#pos-lineas');
-    container.querySelector('#pos-vacio').classList.toggle('hidden', carrito.length > 0);
+    if (!tbody.isConnected) return;
 
-    const lineasCalculadas = carrito.map((l) => {
-      const promo = promoPara(l.producto);
-      const calculo = calcularLinea(l.producto, tipoVenta, l.cantidad, promo);
-      const impuesto = calcularImpuesto(calculo.totalConPromo, l.producto.tarifa_impuesto);
-      return { ...l, calculo, impuesto };
-    });
+    const lineas = lineasCalculadas();
+    container.querySelector('#pos-vacio').classList.toggle('hidden', lineas.length > 0);
 
-    tbody.innerHTML = lineasCalculadas
-      .map(
-        (l) => `<tr>
-          <td>
-            <div class="linea-nombre">${l.producto.nombre}</div>
-            <div class="linea-meta">${l.producto.codigo} · ${l.producto.ubicacion ?? 's/u'}
-              ${l.calculo.promocionAplicada ? `<span class="badge-promo">${l.calculo.promocionAplicada.nombre}</span>` : ''}
-            </div>
-          </td>
-          <td><input type="number" class="cant-input" data-id="${l.producto.producto_id}"
-                     value="${l.cantidad}" min="0" step="${l.producto.permite_fraccion ? '0.01' : '1'}" /></td>
-          <td>$${l.calculo.precioBase.toFixed(2)}</td>
-          <td class="${l.calculo.descuento > 0 ? 'texto-descuento' : ''}">
-            ${l.calculo.descuento > 0 ? '-$' + l.calculo.descuento.toFixed(2) : '—'}</td>
-          <td>$${l.calculo.totalConPromo.toFixed(2)}</td>
-          <td>$${l.impuesto.toFixed(2)}</td>
-          <td><button class="btn-quitar" data-id="${l.producto.producto_id}" title="Quitar">✕</button></td>
-        </tr>`
-      )
-      .join('');
+    tbody.innerHTML = lineas.map((l) => `
+      <tr>
+        <td>
+          <div class="linea-nombre">${escapar(l.producto.nombre)}</div>
+          <div class="linea-meta">${l.producto.codigo} · ${l.producto.ubicacion ?? 's/u'}
+            ${l.calculo.promocionAplicada ? `<span class="badge-promo">${escapar(l.calculo.promocionAplicada.nombre)}</span>` : ''}
+          </div>
+        </td>
+        <td><input type="number" class="cant-input" data-id="${l.producto.producto_id}"
+                   value="${l.cantidad}" min="0" step="${l.producto.permite_fraccion ? '0.01' : '1'}" /></td>
+        <td>$${l.calculo.precioBase.toFixed(2)}</td>
+        <td class="${l.calculo.descuento > 0 ? 'texto-descuento' : ''}">
+          ${l.calculo.descuento > 0 ? '-$' + l.calculo.descuento.toFixed(2) : '—'}</td>
+        <td>$${l.calculo.totalConPromo.toFixed(2)}</td>
+        <td>$${l.impuesto.toFixed(2)}</td>
+        <td><button class="btn-quitar" data-id="${l.producto.producto_id}" title="Quitar">✕</button></td>
+      </tr>`).join('');
 
     tbody.querySelectorAll('.cant-input').forEach((input) => {
-      input.addEventListener('change', () =>
-        cambiarCantidad(input.dataset.id, Number(input.value))
-      );
+      input.addEventListener('change', () => {
+        const r = cambiarCantidad(input.dataset.id, Number(input.value));
+        if (!r.ok && r.mensaje) {
+          scanMsg.textContent = r.mensaje;
+          scanMsg.className = 'form-msg error';
+          pintar();
+        }
+      });
     });
     tbody.querySelectorAll('.btn-quitar').forEach((btn) => {
       btn.addEventListener('click', () => cambiarCantidad(btn.dataset.id, 0));
     });
 
-    const totales = totalizarCarrito(
-      lineasCalculadas.map((l) => ({
-        subtotal: l.calculo.totalConPromo,
-        valor_impuesto: l.impuesto,
-        descuento: l.calculo.descuento,
-      }))
-    );
-
-    container.querySelector('#pos-subtotal').textContent = `$${totales.subtotal.toFixed(2)}`;
-    container.querySelector('#pos-descuento').textContent = `-$${totales.descuento.toFixed(2)}`;
-    container.querySelector('#pos-iva').textContent = `$${totales.impuesto.toFixed(2)}`;
-    container.querySelector('#pos-total').textContent = `$${totales.total.toFixed(2)}`;
-    container.querySelector('#pos-cobrar').disabled = carrito.length === 0;
-
-    return totales;
+    const t = totales();
+    container.querySelector('#pos-subtotal').textContent = `$${t.subtotal.toFixed(2)}`;
+    container.querySelector('#pos-descuento').textContent = `-$${t.descuento.toFixed(2)}`;
+    container.querySelector('#pos-iva').textContent = `$${t.impuesto.toFixed(2)}`;
+    container.querySelector('#pos-total').textContent = `$${t.total.toFixed(2)}`;
+    container.querySelector('#pos-cobrar').disabled = lineas.length === 0;
   }
 
+  desuscribir = suscribir(pintar);
+
   container.querySelectorAll('input[name="tipo-venta"]').forEach((radio) => {
-    radio.addEventListener('change', () => {
-      tipoVenta = radio.value;
-      pintar();
-    });
+    radio.addEventListener('change', () => fijarTipoVenta(radio.value));
   });
 
   container.querySelector('#pos-limpiar').addEventListener('click', () => {
-    carrito = [];
+    vaciar();
     scanMsg.textContent = '';
-    pintar();
     scan.focus();
   });
 
   // ----- Cobro -----
-  container.querySelector('#pos-cobrar').addEventListener('click', async () => {
-    const totales = pintar();
-    abrirModalPago(totales.total, async (pagos) => {
+  container.querySelector('#pos-cobrar').addEventListener('click', () => {
+    const t = totales();
+    abrirModalPago(t.total, async (pagos) => {
       posMsg.textContent = 'Procesando venta...';
       posMsg.className = 'form-msg';
       try {
         const resultado = await registrarVenta(pagos);
         cerrarModal();
         mostrarComprobante(resultado);
-        carrito = [];
-        pintar();
+        vaciar();
         await refrescarStock();
         scan.focus();
       } catch (err) {
@@ -325,20 +234,21 @@ export async function renderPOS(container) {
 
   async function registrarVenta(pagos) {
     const { data: { user } } = await supabase.auth.getUser();
+    const estado = obtenerEstado();
 
     const { data: venta, error: errVenta } = await supabase
       .from('ventas')
       .insert({
-        cliente_id: selCliente.value,
-        bodega_id: bodegaId,
-        tipo_venta: tipoVenta,
+        cliente_id: estado.clienteId ?? selCliente.value,
+        bodega_id: estado.bodegaId,
+        tipo_venta: estado.tipoVenta,
         usuario_id: user?.id ?? null,
       })
       .select('id, numero_interno')
       .single();
     if (errVenta) throw new Error(`No se pudo crear la venta: ${errVenta.message}`);
 
-    const lineas = carrito.map((l) => ({
+    const filas = estado.lineas.map((l) => ({
       venta_id: venta.id,
       producto_id: l.producto.producto_id,
       cantidad: l.cantidad,
@@ -346,7 +256,7 @@ export async function renderPOS(container) {
       subtotal: 0,
     }));
 
-    const { error: errDet } = await supabase.from('venta_detalle').insert(lineas);
+    const { error: errDet } = await supabase.from('venta_detalle').insert(filas);
     if (errDet) throw new Error(`Error al registrar el detalle: ${errDet.message}`);
 
     const { error: errConf } = await supabase
@@ -356,8 +266,8 @@ export async function renderPOS(container) {
     const { data: ventaFinal } = await supabase
       .from('ventas').select('*').eq('id', venta.id).single();
 
-    const filasPago = pagos.map((p) => ({ venta_id: venta.id, ...p }));
-    const { error: errPago } = await supabase.from('pagos_venta').insert(filasPago);
+    const { error: errPago } = await supabase
+      .from('pagos_venta').insert(pagos.map((p) => ({ venta_id: venta.id, ...p })));
     if (errPago) throw new Error(`Venta confirmada pero el pago falló: ${errPago.message}`);
 
     return ventaFinal;
@@ -366,8 +276,8 @@ export async function renderPOS(container) {
   async function refrescarStock() {
     const { data } = await supabase.from('v_pos_productos').select('*').eq('bodega_id', bodegaId);
     if (data) {
-      productos.length = 0;
-      productos.push(...data);
+      catalogo.length = 0;
+      catalogo.push(...data);
     }
   }
 
@@ -381,25 +291,12 @@ export async function renderPOS(container) {
           <div class="comp-linea"><span>IVA</span><b>$${Number(venta.valor_impuesto).toFixed(2)}</b></div>
           <div class="comp-linea grande"><span>TOTAL</span><b>$${Number(venta.total).toFixed(2)}</b></div>
           <p class="nota">Estado: ${venta.estado}. El stock ya fue descontado y los lotes asignados por FEFO.</p>
-          <p class="nota">El envío de la factura electrónica por correo requiere el módulo de facturación SRI (pendiente).</p>
         </div>`,
       botones: [{ texto: 'Nueva venta', clase: 'btn-primary', accion: cerrarModal }],
     });
   }
 
-  // -------------------------------------------------------
-  // Sincronización en tiempo real del stock entre cajas.
-  //
-  // El problema que resuelve: dos cajas atendiendo a la vez pueden
-  // escanear la última unidad del mismo producto. La base de datos
-  // siempre rechaza la segunda venta (el trigger valida el stock al
-  // confirmar), pero sin esto el segundo cajero se entera recién al
-  // cobrar, con el cliente esperando. Escuchando los cambios de
-  // inventario_saldos, el carrito se entera en el momento.
-  //
-  // La base de datos sigue siendo la única autoridad: esto es aviso
-  // temprano, no sustituye la validación del servidor.
-  // -------------------------------------------------------
+  // ----- Tiempo real entre cajas -----
   const indicador = container.querySelector('#pos-conexion');
 
   function marcarConexion(estado, texto) {
@@ -409,46 +306,31 @@ export async function renderPOS(container) {
   }
 
   cerrarCanalPOS();
+  desuscribir = suscribir(pintar);
+
   canalStock = supabase
     .channel('pos-stock')
-    .on(
-      'postgres_changes',
+    .on('postgres_changes',
       { event: 'UPDATE', schema: 'public', table: 'inventario_saldos' },
       (payload) => {
         const fila = payload.new;
         if (!fila || fila.bodega_id !== bodegaId) return;
 
-        const producto = productos.find((p) => p.producto_id === fila.producto_id);
-        if (!producto) return;
+        const producto = catalogo.find((p) => p.producto_id === fila.producto_id);
+        if (producto) producto.stock = Number(fila.stock);
 
-        const anterior = Number(producto.stock);
-        producto.stock = Number(fila.stock);
-        if (anterior === producto.stock) return;
-
-        const enCarrito = carrito.find((l) => l.producto.producto_id === fila.producto_id);
-        if (enCarrito) {
-          if (enCarrito.cantidad > producto.stock) {
-            scanMsg.textContent =
-              `Otra caja acaba de vender "${producto.nombre}": quedan ${producto.stock.toFixed(2)} ` +
-              `y tienes ${enCarrito.cantidad} en el carrito. Ajusta la cantidad antes de cobrar.`;
-            scanMsg.className = 'form-msg error';
-          }
-          pintar();
+        const aviso = actualizarStock(fila.producto_id, Number(fila.stock));
+        if (aviso) {
+          scanMsg.textContent = aviso;
+          scanMsg.className = 'form-msg error';
         }
-      }
-    )
+      })
     .subscribe((estado) => {
       if (estado === 'SUBSCRIBED') marcarConexion('conectado', 'sincronizado');
-      else if (estado === 'CHANNEL_ERROR' || estado === 'TIMED_OUT') {
-        marcarConexion('desconectado', 'sin sincronizar');
-      } else if (estado === 'CLOSED') {
-        marcarConexion('desconectado', 'desconectado');
-      }
+      else if (estado === 'CHANNEL_ERROR' || estado === 'TIMED_OUT') marcarConexion('desconectado', 'sin sincronizar');
+      else if (estado === 'CLOSED') marcarConexion('desconectado', 'desconectado');
     });
 
-  // Si Realtime no está habilitado en el proyecto, el canal nunca llega a
-  // SUBSCRIBED. Se avisa sin alarmar: la venta funciona igual, solo que
-  // el aviso de stock llega al confirmar en vez de al instante.
   setTimeout(() => {
     if (indicador.isConnected && indicador.classList.contains('conectando')) {
       marcarConexion('desconectado', 'sin sincronizar');
@@ -459,7 +341,14 @@ export async function renderPOS(container) {
   }, 6000);
 
   pintar();
+  actualizarPanelVenta();
   scan.focus();
+}
+
+function escapar(t) {
+  const d = document.createElement('div');
+  d.textContent = t ?? '';
+  return d.innerHTML;
 }
 
 // =========================================================
@@ -535,7 +424,6 @@ function abrirModalPago(total, onConfirmar) {
         });
       });
 
-      modal.dataset.forma = 'EFECTIVO';
       modal._obtenerForma = () => forma;
       recibido.focus();
     },

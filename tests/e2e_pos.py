@@ -57,7 +57,7 @@ with sync_playwright() as p:
     # ---------------------------------------------------------
     print("\n--- Escaneo por EAN-13 y promoción 3 x $1")
     for _ in range(7):
-        pagina.fill("#pos-scan", "7861000100017")
+        pagina.fill("#pos-scan", "7861000100014")
         pagina.press("#pos-scan", "Enter")
         pagina.wait_for_timeout(60)
 
@@ -82,7 +82,7 @@ with sync_playwright() as p:
 
     # ---------------------------------------------------------
     print("\n--- IVA sobre producto de tarifa general")
-    pagina.fill("#pos-scan", "7861000100024")
+    pagina.fill("#pos-scan", "7861000100021")
     pagina.press("#pos-scan", "Enter")
     pagina.wait_for_timeout(300)
 
@@ -97,7 +97,7 @@ with sync_playwright() as p:
     # ---------------------------------------------------------
     print("\n--- Validación de stock en el escaneo")
     for _ in range(4):  # el mock tiene stock 3 de Ruffles; ya hay 1 en el carrito
-        pagina.fill("#pos-scan", "7861000100024")
+        pagina.fill("#pos-scan", "7861000100021")
         pagina.press("#pos-scan", "Enter")
         pagina.wait_for_timeout(80)
 
@@ -199,7 +199,7 @@ with sync_playwright() as p:
 
     # La venta anterior vació el carrito: se arma uno nuevo con 2 Ruffles
     for _ in range(2):
-        pagina.fill("#pos-scan", "7861000100024")
+        pagina.fill("#pos-scan", "7861000100021")
         pagina.press("#pos-scan", "Enter")
         pagina.wait_for_timeout(80)
     pagina.wait_for_timeout(300)
@@ -213,6 +213,60 @@ with sync_playwright() as p:
 
     pagina.click("#pos-limpiar")
     pagina.wait_for_timeout(200)
+
+    print("\n--- Autocompletado del campo de escaneo")
+    pagina.fill("#pos-scan", "ruff")
+    pagina.wait_for_selector(".ac-lista .ac-opcion", timeout=5000)
+    revisar("escribir parte del nombre sugiere el producto",
+            "Ruffles" in pagina.inner_text(".ac-lista"))
+    revisar("la sugerencia muestra código, ubicación y stock",
+            "SNK-001" in pagina.inner_text(".ac-lista")
+            and "SNK-I-02-1" in pagina.inner_text(".ac-lista"))
+    revisar("resalta la parte coincidente", pagina.is_visible(".ac-texto mark"))
+
+    pagina.fill("#pos-scan", "zzzzz")
+    pagina.wait_for_timeout(300)
+    revisar("avisa cuando no hay coincidencias",
+            "Sin coincidencias" in pagina.inner_text(".ac-lista"))
+    pagina.fill("#pos-scan", "")
+    pagina.keyboard.press("Escape")
+    pagina.wait_for_timeout(200)
+
+    print("\n--- La venta sobrevive al cambio de módulo")
+    for _ in range(2):
+        pagina.fill("#pos-scan", "7861000100014")
+        pagina.press("#pos-scan", "Enter")
+        pagina.wait_for_timeout(120)
+    pagina.wait_for_timeout(300)
+    total_antes = pagina.inner_text("#pos-total")
+    revisar("hay una venta armada antes de navegar", total_antes != "$0.00",
+            f"(total {total_antes})")
+
+    pagina.evaluate("location.hash = '#layout'")
+    pagina.wait_for_timeout(800)
+    revisar("aparece el panel de venta en curso al salir de la caja",
+            pagina.is_visible(".panel-venta"))
+    revisar("el panel muestra el mismo total",
+            total_antes in pagina.inner_text(".pv-total"),
+            f"(panel dice {pagina.inner_text('.pv-total')})")
+
+    pagina.fill(".pv-scan", "7861000100014")
+    pagina.press(".pv-scan", "Enter")
+    pagina.wait_for_timeout(400)
+    revisar("se puede seguir escaneando desde el panel sin volver a la caja",
+            total_antes not in pagina.inner_text(".pv-total"),
+            f"(ahora {pagina.inner_text('.pv-total')})")
+
+    pagina.click(".pv-cobrar")
+    pagina.wait_for_selector("#pos-scan", timeout=8000)
+    pagina.wait_for_timeout(600)
+    revisar("al volver a la caja el carrito sigue intacto",
+            len(pagina.query_selector_all("#pos-lineas tr")) == 1)
+    revisar("el panel flotante se oculta dentro del punto de venta",
+            not pagina.is_visible(".panel-venta"))
+
+    pagina.click("#pos-limpiar")
+    pagina.wait_for_timeout(300)
 
     print("\n--- Panel flotante de consulta")
     pagina.keyboard.press("F2")
@@ -324,6 +378,38 @@ with sync_playwright() as p:
     revisar("la tabla de ocupación clasifica el estado de la zona",
             any(e in pagina.inner_text("#tabla-ocupacion")
                 for e in ["Saturada", "Alta", "Holgada", "Subutilizada"]))
+
+    print("\n--- Administración y roles")
+    pagina.evaluate("location.hash = '#admin'")
+    pagina.wait_for_selector(".tabs", timeout=6000)
+    pagina.wait_for_timeout(500)
+    revisar("el admin ve la matriz de permisos por rol",
+            "Con token" in pagina.inner_text("#admin-vista"))
+    revisar("lista los usuarios con su rol",
+            "VENDEDOR" in pagina.inner_text("#tabla-usuarios"))
+    revisar("permite cambiar el rol desde un desplegable",
+            pagina.is_visible(".sel-rol"))
+    revisar("el menú muestra el rol de la sesión",
+            "admin" in pagina.inner_text("#rol-actual").lower(),
+            f"(dice '{pagina.inner_text('#rol-actual')}')")
+
+    pagina.click('.tab[data-a="tokens"]')
+    pagina.wait_for_selector("#form-token", timeout=5000)
+    pagina.fill("#tk-desc", "Prueba automatizada")
+    pagina.click("#form-token button[type=submit]")
+    pagina.wait_for_selector(".token-grande", timeout=5000)
+    revisar("emite un token y lo muestra una sola vez",
+            len(pagina.inner_text(".token-grande").strip()) >= 8)
+    rpc = [e for e in pagina.evaluate("window.__ESCRITURAS")
+           if e["tabla"] == "rpc:fn_emitir_token"]
+    revisar("el token se pide a la base, no se inventa en el navegador", len(rpc) == 1)
+    pagina.click(".modal-cerrar")
+    pagina.wait_for_timeout(200)
+
+    pagina.click('.tab[data-a="empresa"]')
+    pagina.wait_for_selector("#form-empresa", timeout=5000)
+    revisar("permite editar los datos fiscales para el recibo",
+            pagina.input_value("input[name=ruc]") == "1790016919001")
 
     print("\n--- Otras pantallas cargan sin romperse")
     for ruta, selector in [

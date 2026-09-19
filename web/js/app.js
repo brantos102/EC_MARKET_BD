@@ -14,6 +14,9 @@ import { renderAuditoria } from './auditoria.js';
 import { renderReportes } from './reportes.js';
 import { cerrarModal } from './lib/modal.js';
 import { alternarPanel } from './lib/panel.js';
+import { actualizarPanelVenta } from './lib/panel-venta.js';
+import { renderAdmin } from './admin.js';
+import { aplicarRolEnMenu, limpiarPerfil } from './lib/sesion.js';
 
 const routes = {
   dashboard:    { render: renderDashboard,    title: 'Dashboard' },
@@ -28,6 +31,7 @@ const routes = {
   kardex:       { render: renderKardex,       title: 'Kardex' },
   reportes:     { render: renderReportes,     title: 'Reportes' },
   auditoria:    { render: renderAuditoria,    title: 'Bitácora de auditoría' },
+  admin:        { render: renderAdmin,        title: 'Administración' },
 };
 
 const content = document.getElementById('content');
@@ -50,6 +54,10 @@ async function navigate() {
   document.body.classList.toggle('modo-pos', hash === 'pos');
 
   content.innerHTML = '<p class="loading">Cargando...</p>';
+  // El panel de la venta en curso se muestra u oculta según el módulo:
+  // en el punto de venta sobra, en cualquier otro es lo que evita
+  // perder el carrito al ir a consultar algo.
+  actualizarPanelVenta();
   try {
     await route.render(content);
   } catch (err) {
@@ -62,6 +70,11 @@ window.addEventListener('hashchange', navigate);
 
 document.getElementById('btn-consulta-global')?.addEventListener('click', alternarPanel);
 
-onAuthReady((session) => {
-  if (session) navigate();
+onAuthReady(async (session) => {
+  if (!session) {
+    limpiarPerfil();
+    return;
+  }
+  await aplicarRolEnMenu();
+  navigate();
 });

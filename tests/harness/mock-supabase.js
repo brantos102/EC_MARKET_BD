@@ -30,9 +30,23 @@
         promocion_alcance: [{ producto_id: 'prod-limon', categoria_id: null }],
       },
     ],
+    perfiles_usuario: [
+      { usuario_id: 'u-1', nombre: 'prueba@itsanet.com', rol: 'ADMIN', activo: true,
+        created_at: '2026-09-01T10:00:00Z' },
+      { usuario_id: 'u-2', nombre: 'cajera@itsanet.com', rol: 'VENDEDOR', activo: true,
+        created_at: '2026-09-10T10:00:00Z' },
+    ],
+    tokens_autorizacion: [],
+    empresa: [
+      { id: true, razon_social: 'MARKET DE PRUEBA', nombre_comercial: 'Market',
+        ruc: '1790016919001', direccion_matriz: 'Quito', telefono: '02-2000000',
+        email: 'market@prueba.ec', establecimiento: '001', punto_emision: '001',
+        ambiente: 'PRUEBAS', tipo_negocio: 'MARKET', obligado_contabilidad: false,
+        pie_recibo: '¡Gracias por su compra!', logo_url: null },
+    ],
     v_stock_actual: [
       {
-        producto_id: 'prod-limon', codigo: 'FRU-013', ean13: '7861000100017',
+        producto_id: 'prod-limon', codigo: 'FRU-013', ean13: '7861000100014',
         producto: 'Limón sutil', marca: null, categoria: 'Frutas',
         bodega_id: 'bod-1', bodega: 'Bodega Principal', unidad: 'LB',
         stock: 40, costo_promedio: 0.45, valor_total: 18,
@@ -41,7 +55,7 @@
         ubicacion: 'PER-A-01-1', zona: 'Perecibles',
       },
       {
-        producto_id: 'prod-ruffles', codigo: 'SNK-001', ean13: '7861000100024',
+        producto_id: 'prod-ruffles', codigo: 'SNK-001', ean13: '7861000100021',
         producto: 'Papas Ruffles 140g', marca: 'Ruffles', categoria: 'Snacks',
         bodega_id: 'bod-1', bodega: 'Bodega Principal', unidad: 'UND',
         stock: 3, costo_promedio: 1.68, valor_total: 5.04,
@@ -55,7 +69,7 @@
         tipo_conservacion: 'AMBIENTE', orden: 1,
         ubicacion_id: 'u-A11', ubicacion: 'PER-A-01-1', pasillo: 'A', estante: 1, nivel: 1,
         capacidad_maxima: 200, producto_id: 'prod-limon', producto_codigo: 'FRU-013',
-        producto: 'Limon sutil', ean13: '7861000100017', stock: 40, porcentaje_ocupacion: 20 },
+        producto: 'Limon sutil', ean13: '7861000100014', stock: 40, porcentaje_ocupacion: 20 },
       { zona_id: 'z-per', zona_codigo: 'PER', zona: 'Perecibles', color_hex: '#22c55e',
         tipo_conservacion: 'AMBIENTE', orden: 1,
         ubicacion_id: 'u-A12', ubicacion: 'PER-A-01-2', pasillo: 'A', estante: 1, nivel: 2,
@@ -65,7 +79,7 @@
         tipo_conservacion: 'AMBIENTE', orden: 1,
         ubicacion_id: 'u-A13', ubicacion: 'PER-A-01-3', pasillo: 'A', estante: 1, nivel: 3,
         capacidad_maxima: 200, producto_id: 'prod-limon', producto_codigo: 'FRU-013',
-        producto: 'Limon sutil', ean13: '7861000100017', stock: 40, porcentaje_ocupacion: 20 },
+        producto: 'Limon sutil', ean13: '7861000100014', stock: 40, porcentaje_ocupacion: 20 },
       { zona_id: 'z-per', zona_codigo: 'PER', zona: 'Perecibles', color_hex: '#22c55e',
         tipo_conservacion: 'AMBIENTE', orden: 1,
         ubicacion_id: 'u-A21', ubicacion: 'PER-A-02-1', pasillo: 'A', estante: 2, nivel: 1,
@@ -75,22 +89,22 @@
         tipo_conservacion: 'AMBIENTE', orden: 1,
         ubicacion_id: 'u-A22', ubicacion: 'PER-A-02-2', pasillo: 'A', estante: 2, nivel: 2,
         capacidad_maxima: 200, producto_id: 'prod-limon', producto_codigo: 'FRU-013',
-        producto: 'Limon sutil', ean13: '7861000100017', stock: 40, porcentaje_ocupacion: 20 },
+        producto: 'Limon sutil', ean13: '7861000100014', stock: 40, porcentaje_ocupacion: 20 },
       { zona_id: 'z-per', zona_codigo: 'PER', zona: 'Perecibles', color_hex: '#22c55e',
         tipo_conservacion: 'AMBIENTE', orden: 1,
         ubicacion_id: 'u-A23', ubicacion: 'PER-A-02-3', pasillo: 'A', estante: 2, nivel: 3,
         capacidad_maxima: 200, producto_id: 'prod-limon', producto_codigo: 'FRU-013',
-        producto: 'Limon sutil', ean13: '7861000100017', stock: 40, porcentaje_ocupacion: 20 },
+        producto: 'Limon sutil', ean13: '7861000100014', stock: 40, porcentaje_ocupacion: 20 },
       { zona_id: 'z-per', zona_codigo: 'PER', zona: 'Perecibles', color_hex: '#22c55e',
         tipo_conservacion: 'AMBIENTE', orden: 1,
         ubicacion_id: 'u-A31', ubicacion: 'PER-A-03-1', pasillo: 'A', estante: 3, nivel: 1,
         capacidad_maxima: 200, producto_id: 'prod-limon', producto_codigo: 'FRU-013',
-        producto: 'Limon sutil', ean13: '7861000100017', stock: 40, porcentaje_ocupacion: 20 },
+        producto: 'Limon sutil', ean13: '7861000100014', stock: 40, porcentaje_ocupacion: 20 },
       { zona_id: 'z-per', zona_codigo: 'PER', zona: 'Perecibles', color_hex: '#22c55e',
         tipo_conservacion: 'AMBIENTE', orden: 1,
         ubicacion_id: 'u-A32', ubicacion: 'PER-A-03-2', pasillo: 'A', estante: 3, nivel: 2,
         capacidad_maxima: 200, producto_id: 'prod-limon', producto_codigo: 'FRU-013',
-        producto: 'Limon sutil', ean13: '7861000100017', stock: 40, porcentaje_ocupacion: 20 },
+        producto: 'Limon sutil', ean13: '7861000100014', stock: 40, porcentaje_ocupacion: 20 },
       { zona_id: 'z-per', zona_codigo: 'PER', zona: 'Perecibles', color_hex: '#22c55e',
         tipo_conservacion: 'AMBIENTE', orden: 1,
         ubicacion_id: 'u-A33', ubicacion: 'PER-A-03-3', pasillo: 'A', estante: 3, nivel: 3,
@@ -100,7 +114,7 @@
         tipo_conservacion: 'AMBIENTE', orden: 1,
         ubicacion_id: 'u-A41', ubicacion: 'PER-A-04-1', pasillo: 'A', estante: 4, nivel: 1,
         capacidad_maxima: 200, producto_id: 'prod-limon', producto_codigo: 'FRU-013',
-        producto: 'Limon sutil', ean13: '7861000100017', stock: 40, porcentaje_ocupacion: 20 },
+        producto: 'Limon sutil', ean13: '7861000100014', stock: 40, porcentaje_ocupacion: 20 },
       { zona_id: 'z-per', zona_codigo: 'PER', zona: 'Perecibles', color_hex: '#22c55e',
         tipo_conservacion: 'AMBIENTE', orden: 1,
         ubicacion_id: 'u-A42', ubicacion: 'PER-A-04-2', pasillo: 'A', estante: 4, nivel: 2,
@@ -110,12 +124,12 @@
         tipo_conservacion: 'AMBIENTE', orden: 1,
         ubicacion_id: 'u-A43', ubicacion: 'PER-A-04-3', pasillo: 'A', estante: 4, nivel: 3,
         capacidad_maxima: 200, producto_id: 'prod-limon', producto_codigo: 'FRU-013',
-        producto: 'Limon sutil', ean13: '7861000100017', stock: 40, porcentaje_ocupacion: 20 },
+        producto: 'Limon sutil', ean13: '7861000100014', stock: 40, porcentaje_ocupacion: 20 },
       { zona_id: 'z-per', zona_codigo: 'PER', zona: 'Perecibles', color_hex: '#22c55e',
         tipo_conservacion: 'AMBIENTE', orden: 1,
         ubicacion_id: 'u-B11', ubicacion: 'PER-B-01-1', pasillo: 'B', estante: 1, nivel: 1,
         capacidad_maxima: 200, producto_id: 'prod-limon', producto_codigo: 'FRU-013',
-        producto: 'Limon sutil', ean13: '7861000100017', stock: 40, porcentaje_ocupacion: 20 },
+        producto: 'Limon sutil', ean13: '7861000100014', stock: 40, porcentaje_ocupacion: 20 },
       { zona_id: 'z-per', zona_codigo: 'PER', zona: 'Perecibles', color_hex: '#22c55e',
         tipo_conservacion: 'AMBIENTE', orden: 1,
         ubicacion_id: 'u-B12', ubicacion: 'PER-B-01-2', pasillo: 'B', estante: 1, nivel: 2,
@@ -125,7 +139,7 @@
         tipo_conservacion: 'AMBIENTE', orden: 1,
         ubicacion_id: 'u-B13', ubicacion: 'PER-B-01-3', pasillo: 'B', estante: 1, nivel: 3,
         capacidad_maxima: 200, producto_id: 'prod-limon', producto_codigo: 'FRU-013',
-        producto: 'Limon sutil', ean13: '7861000100017', stock: 40, porcentaje_ocupacion: 20 },
+        producto: 'Limon sutil', ean13: '7861000100014', stock: 40, porcentaje_ocupacion: 20 },
       { zona_id: 'z-per', zona_codigo: 'PER', zona: 'Perecibles', color_hex: '#22c55e',
         tipo_conservacion: 'AMBIENTE', orden: 1,
         ubicacion_id: 'u-B21', ubicacion: 'PER-B-02-1', pasillo: 'B', estante: 2, nivel: 1,
@@ -135,22 +149,22 @@
         tipo_conservacion: 'AMBIENTE', orden: 1,
         ubicacion_id: 'u-B22', ubicacion: 'PER-B-02-2', pasillo: 'B', estante: 2, nivel: 2,
         capacidad_maxima: 200, producto_id: 'prod-limon', producto_codigo: 'FRU-013',
-        producto: 'Limon sutil', ean13: '7861000100017', stock: 40, porcentaje_ocupacion: 20 },
+        producto: 'Limon sutil', ean13: '7861000100014', stock: 40, porcentaje_ocupacion: 20 },
       { zona_id: 'z-per', zona_codigo: 'PER', zona: 'Perecibles', color_hex: '#22c55e',
         tipo_conservacion: 'AMBIENTE', orden: 1,
         ubicacion_id: 'u-B23', ubicacion: 'PER-B-02-3', pasillo: 'B', estante: 2, nivel: 3,
         capacidad_maxima: 200, producto_id: 'prod-limon', producto_codigo: 'FRU-013',
-        producto: 'Limon sutil', ean13: '7861000100017', stock: 40, porcentaje_ocupacion: 20 },
+        producto: 'Limon sutil', ean13: '7861000100014', stock: 40, porcentaje_ocupacion: 20 },
       { zona_id: 'z-per', zona_codigo: 'PER', zona: 'Perecibles', color_hex: '#22c55e',
         tipo_conservacion: 'AMBIENTE', orden: 1,
         ubicacion_id: 'u-B31', ubicacion: 'PER-B-03-1', pasillo: 'B', estante: 3, nivel: 1,
         capacidad_maxima: 200, producto_id: 'prod-limon', producto_codigo: 'FRU-013',
-        producto: 'Limon sutil', ean13: '7861000100017', stock: 40, porcentaje_ocupacion: 20 },
+        producto: 'Limon sutil', ean13: '7861000100014', stock: 40, porcentaje_ocupacion: 20 },
       { zona_id: 'z-per', zona_codigo: 'PER', zona: 'Perecibles', color_hex: '#22c55e',
         tipo_conservacion: 'AMBIENTE', orden: 1,
         ubicacion_id: 'u-B32', ubicacion: 'PER-B-03-2', pasillo: 'B', estante: 3, nivel: 2,
         capacidad_maxima: 200, producto_id: 'prod-limon', producto_codigo: 'FRU-013',
-        producto: 'Limon sutil', ean13: '7861000100017', stock: 40, porcentaje_ocupacion: 20 },
+        producto: 'Limon sutil', ean13: '7861000100014', stock: 40, porcentaje_ocupacion: 20 },
       { zona_id: 'z-per', zona_codigo: 'PER', zona: 'Perecibles', color_hex: '#22c55e',
         tipo_conservacion: 'AMBIENTE', orden: 1,
         ubicacion_id: 'u-B33', ubicacion: 'PER-B-03-3', pasillo: 'B', estante: 3, nivel: 3,
@@ -160,7 +174,7 @@
         tipo_conservacion: 'AMBIENTE', orden: 1,
         ubicacion_id: 'u-B41', ubicacion: 'PER-B-04-1', pasillo: 'B', estante: 4, nivel: 1,
         capacidad_maxima: 200, producto_id: 'prod-limon', producto_codigo: 'FRU-013',
-        producto: 'Limon sutil', ean13: '7861000100017', stock: 40, porcentaje_ocupacion: 20 },
+        producto: 'Limon sutil', ean13: '7861000100014', stock: 40, porcentaje_ocupacion: 20 },
       { zona_id: 'z-per', zona_codigo: 'PER', zona: 'Perecibles', color_hex: '#22c55e',
         tipo_conservacion: 'AMBIENTE', orden: 1,
         ubicacion_id: 'u-B42', ubicacion: 'PER-B-04-2', pasillo: 'B', estante: 4, nivel: 2,
@@ -170,13 +184,13 @@
         tipo_conservacion: 'AMBIENTE', orden: 1,
         ubicacion_id: 'u-B43', ubicacion: 'PER-B-04-3', pasillo: 'B', estante: 4, nivel: 3,
         capacidad_maxima: 200, producto_id: 'prod-limon', producto_codigo: 'FRU-013',
-        producto: 'Limon sutil', ean13: '7861000100017', stock: 40, porcentaje_ocupacion: 20 },
+        producto: 'Limon sutil', ean13: '7861000100014', stock: 40, porcentaje_ocupacion: 20 },
       {
         zona_id: 'z-per', zona_codigo: 'PER', zona: 'Perecibles', color_hex: '#22c55e',
         tipo_conservacion: 'AMBIENTE', orden: 1,
         ubicacion_id: 'u-1', ubicacion: 'PER-A-01-1', pasillo: 'A', estante: 1, nivel: 1,
         capacidad_maxima: 200, producto_id: 'prod-limon', producto_codigo: 'FRU-013',
-        producto: 'Limón sutil', ean13: '7861000100017', stock: 40, porcentaje_ocupacion: 20,
+        producto: 'Limón sutil', ean13: '7861000100014', stock: 40, porcentaje_ocupacion: 20,
       },
       {
         zona_id: 'z-per', zona_codigo: 'PER', zona: 'Perecibles', color_hex: '#22c55e',
@@ -190,7 +204,7 @@
         tipo_conservacion: 'AMBIENTE', orden: 7,
         ubicacion_id: 'u-3', ubicacion: 'SNK-I-02-1', pasillo: 'I', estante: 2, nivel: 1,
         capacidad_maxima: 200, producto_id: 'prod-ruffles', producto_codigo: 'SNK-001',
-        producto: 'Papas Ruffles 140g', ean13: '7861000100024', stock: 3, porcentaje_ocupacion: 1.5,
+        producto: 'Papas Ruffles 140g', ean13: '7861000100021', stock: 3, porcentaje_ocupacion: 1.5,
       },
     ],
     lotes: [
@@ -200,7 +214,7 @@
       {
         producto_id: 'prod-limon',
         codigo: 'FRU-013',
-        ean13: '7861000100017',
+        ean13: '7861000100014',
         nombre: 'Limón sutil',
         marca: null,
         categoria_id: 'cat-fru',
@@ -219,7 +233,7 @@
       {
         producto_id: 'prod-ruffles',
         codigo: 'SNK-001',
-        ean13: '7861000100024',
+        ean13: '7861000100021',
         nombre: 'Papas Ruffles 140g',
         marca: 'Ruffles',
         categoria_id: 'cat-snk',
@@ -332,10 +346,23 @@
     }
   };
 
+  async function rpc(nombre, args) {
+    if (nombre === 'fn_mi_perfil') {
+      return { data: [{ usuario_id: 'u-1', nombre: 'prueba@itsanet.com', rol: 'ADMIN',
+                        bodega_id: BODEGA, tipo_negocio: 'MARKET' }], error: null };
+    }
+    if (nombre === 'fn_emitir_token') {
+      window.__ESCRITURAS.push({ tabla: 'rpc:fn_emitir_token', operacion: 'rpc', payload: args });
+      return { data: 'ABCD-2345', error: null };
+    }
+    return { data: null, error: { message: `rpc no simulada: ${nombre}` } };
+  }
+
   window.supabase = {
     createClient() {
       return {
         from: consulta,
+        rpc,
         channel: canalSimulado,
         removeChannel: (c) => {
           window.__CANALES = window.__CANALES.filter((x) => x !== c);
