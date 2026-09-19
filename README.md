@@ -42,6 +42,7 @@ En el proyecto de Supabase → **SQL Editor** → pegar y ejecutar **en orden**:
 
 | # | Archivo | Qué crea |
 |---|---|---|
+| 0 | `db/000_diagnostico.sql` | **No crea nada**: reporta qué migraciones faltan y refresca el caché de esquema. Ejecútalo primero cuando algo falle. |
 | 1 | `db/schema.sql` | Productos, bodegas, kardex y costeo promedio ponderado |
 | 2 | `db/002_catalogos_ubicaciones.sql` | Unidades, IVA parametrizable, EAN-13, layout, lotes |
 | 3 | `db/003_ingresos.sql` | Ingreso de mercadería y numeración de trazabilidad |
