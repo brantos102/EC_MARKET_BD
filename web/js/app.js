@@ -6,13 +6,14 @@ import { renderBodegas } from './bodegas.js';
 import { renderMovimientos } from './movimientos.js';
 import { renderKardex } from './kardex.js';
 import { renderIngresos } from './ingresos.js';
-import { renderPOS } from './pos.js';
+import { renderPOS, cerrarCanalPOS } from './pos.js';
 import { renderLayout } from './layout.js';
 import { renderCaducidades } from './caducidades.js';
 import { renderPromociones } from './promociones.js';
 import { renderAuditoria } from './auditoria.js';
 import { renderReportes } from './reportes.js';
 import { cerrarModal } from './lib/modal.js';
+import { alternarPanel } from './lib/panel.js';
 
 const routes = {
   dashboard:    { render: renderDashboard,    title: 'Dashboard' },
@@ -34,8 +35,13 @@ const pageTitle = document.getElementById('page-title');
 
 async function navigate() {
   cerrarModal();
+  // El panel flotante NO se cierra al navegar: ese es justamente su
+  // propósito — seguir consultando mientras se cambia de módulo.
   const hash = (location.hash || '#dashboard').replace('#', '');
   const route = routes[hash] ?? routes.dashboard;
+
+  // Al salir del punto de venta se libera la suscripción de tiempo real
+  if (hash !== 'pos') cerrarCanalPOS();
 
   document.querySelectorAll('.nav-link').forEach((link) => {
     link.classList.toggle('active', link.getAttribute('href') === `#${hash}`);
@@ -53,6 +59,8 @@ async function navigate() {
 }
 
 window.addEventListener('hashchange', navigate);
+
+document.getElementById('btn-consulta-global')?.addEventListener('click', alternarPanel);
 
 onAuthReady((session) => {
   if (session) navigate();

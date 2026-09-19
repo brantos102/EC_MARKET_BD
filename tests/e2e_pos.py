@@ -184,14 +184,96 @@ with sync_playwright() as p:
 
     revisar("se muestra el comprobante", pagina.is_visible(".comprobante"))
 
+    # Cerrar el comprobante para dejar libre la interfaz
+    pagina.click(".modal-cerrar")
+    pagina.wait_for_timeout(300)
+    revisar("al cerrar el comprobante la caja queda lista para la siguiente venta",
+            not pagina.is_visible(".modal"))
+
     # ---------------------------------------------------------
+    print("\n--- Sincronización en tiempo real entre cajas")
+    pagina.wait_for_timeout(400)
+    revisar("el indicador muestra sesión sincronizada",
+            "sincronizado" in pagina.inner_text("#pos-conexion"),
+            f"(dice '{pagina.inner_text('#pos-conexion')}')")
+
+    # La venta anterior vació el carrito: se arma uno nuevo con 2 Ruffles
+    for _ in range(2):
+        pagina.fill("#pos-scan", "7861000100024")
+        pagina.press("#pos-scan", "Enter")
+        pagina.wait_for_timeout(80)
+    pagina.wait_for_timeout(300)
+
+    # Otra caja vende y deja el stock en 1, por debajo de lo que hay en el carrito
+    pagina.evaluate("window.__emitirCambioStock('prod-ruffles', 1)")
+    pagina.wait_for_timeout(400)
+    aviso = pagina.inner_text("#pos-scan-msg")
+    revisar("avisa cuando otra caja deja el carrito sin respaldo de stock",
+            "Otra caja" in aviso, f"(dice '{aviso}')")
+
+    pagina.click("#pos-limpiar")
+    pagina.wait_for_timeout(200)
+
+    print("\n--- Panel flotante de consulta")
+    pagina.keyboard.press("F2")
+    pagina.wait_for_selector(".panel-flotante", timeout=5000)
+    revisar("F2 abre el panel flotante", pagina.is_visible(".panel-flotante"))
+    revisar("el panel se declara de solo lectura",
+            "solo lectura" in pagina.inner_text(".pf-head").lower(),
+            f"(dice '{pagina.inner_text('.pf-head')}')")
+
+    pagina.fill("#panel-buscar", "Limón")
+    pagina.wait_for_selector(".pf-tarjeta", timeout=5000)
+    revisar("muestra la ubicación del producto consultado",
+            "PER-A-01-1" in pagina.inner_text(".pf-tarjeta"))
+    revisar("muestra el precio de venta",
+            "0.80" in pagina.inner_text(".pf-tarjeta"))
+
+    # La prueba clave: el panel sobrevive al cambio de módulo
+    carrito_antes = len(pagina.query_selector_all("#pos-lineas tr"))
+    pagina.evaluate("location.hash = '#caducidades'")
+    pagina.wait_for_timeout(700)
+    revisar("el panel sigue abierto tras navegar a otro módulo",
+            pagina.is_visible(".panel-flotante"))
+    revisar("conserva la consulta que se estaba viendo",
+            "Limón" in pagina.input_value("#panel-buscar"))
+
+    pagina.evaluate("location.hash = '#pos'")
+    pagina.wait_for_selector("#pos-scan", timeout=8000)
+    pagina.wait_for_timeout(600)
+    revisar("el panel sigue abierto al volver al punto de venta",
+            pagina.is_visible(".panel-flotante"))
+
+    pagina.click('.pf-btn[data-accion="cerrar"]')
+    pagina.wait_for_timeout(200)
+    revisar("el panel se cierra con su botón",
+            not pagina.is_visible(".panel-flotante"))
+
     print("\n--- Mapa del market")
     pagina.evaluate("location.hash = '#layout'")
     pagina.wait_for_selector(".zona", timeout=8000)
     pagina.wait_for_timeout(400)
     revisar("dibuja las zonas del market", len(pagina.query_selector_all(".zona")) == 2)
-    revisar("marca las celdas ocupadas", len(pagina.query_selector_all(".celda.ocupada")) == 2)
-    revisar("marca las celdas libres", len(pagina.query_selector_all(".celda.vacia")) == 1)
+
+    # Los conteos se comparan contra los KPI que calcula la propia aplicación:
+    # así la prueba verifica que el mapa y el resumen cuentan lo mismo, en vez
+    # de depender de números fijos que se rompen al cambiar los datos de prueba.
+    kpis = [int(e.inner_text()) for e in pagina.query_selector_all(".kpi-value")[:2]]
+    total_kpi = kpis[1]
+    ocupadas_kpi = int(pagina.query_selector_all(".kpi-value")[2].inner_text())
+    libres_kpi = int(pagina.query_selector_all(".kpi-value")[3].inner_text())
+
+    celdas = len(pagina.query_selector_all(".celda"))
+    ocupadas_celdas = len(pagina.query_selector_all(".celda.ocupada")) + \
+                      len(pagina.query_selector_all(".celda.sin-stock"))
+    libres_celdas = len(pagina.query_selector_all(".celda.vacia"))
+
+    revisar("el mapa dibuja una celda por ubicación", celdas == total_kpi,
+            f"({celdas} celdas vs {total_kpi} ubicaciones)")
+    revisar("las celdas ocupadas coinciden con el KPI", ocupadas_celdas == ocupadas_kpi,
+            f"({ocupadas_celdas} vs {ocupadas_kpi})")
+    revisar("las celdas libres coinciden con el KPI", libres_celdas == libres_kpi,
+            f"({libres_celdas} vs {libres_kpi})")
 
     pagina.fill("#layout-buscar", "Ruffles")
     pagina.wait_for_timeout(400)
@@ -206,6 +288,42 @@ with sync_playwright() as p:
             "Lotes disponibles" in pagina.inner_text(".modal"))
     pagina.click(".modal-cerrar")
     pagina.wait_for_timeout(200)
+
+    print("\n--- Vista 3D del layout")
+    pagina.click('.tab[data-v="tresd"]')
+    pagina.wait_for_selector(".caja-3d", timeout=6000)
+    revisar("dibuja las cajas en perspectiva 3D",
+            len(pagina.query_selector_all(".caja-3d")) >= 2)
+    transform_antes = pagina.eval_on_selector("#mundo", "el => el.style.transform")
+    pagina.eval_on_selector("#rot-y", "el => { el.value = 40; el.dispatchEvent(new Event('input')); }")
+    pagina.wait_for_timeout(300)
+    transform_despues = pagina.eval_on_selector("#mundo", "el => el.style.transform")
+    revisar("el control de giro rota la escena", transform_antes != transform_despues)
+
+    print("\n--- Tabla de posiciones")
+    pagina.click('.tab[data-v="tabla"]')
+    pagina.wait_for_selector("#tabla-posiciones .dyn-table", timeout=6000)
+    filas_tabla = len(pagina.query_selector_all("#tabla-posiciones tbody tr"))
+    revisar("la tabla lista las mismas posiciones que el mapa", filas_tabla == total_kpi,
+            f"({filas_tabla} filas vs {total_kpi} ubicaciones)")
+    revisar("distingue las posiciones libres",
+            "Libre" in pagina.inner_text("#tabla-posiciones"))
+    pagina.fill("#tabla-posiciones input[type='search']", "SNK")
+    pagina.wait_for_timeout(300)
+    revisar("la tabla de posiciones filtra",
+            len(pagina.query_selector_all("#tabla-posiciones tbody tr")) == 1)
+
+    print("\n--- Análisis de ocupación")
+    pagina.click('.tab[data-v="ocupacion"]')
+    pagina.wait_for_selector(".barras-ocupacion", timeout=6000)
+    barras = pagina.query_selector_all(".barra-fila")
+    revisar("dibuja una barra por zona", len(barras) == 2, f"(hay {len(barras)})")
+    revisar("cada barra lleva su valor como etiqueta directa",
+            all(p.strip().endswith("%") for p in
+                [b.query_selector(".barra-numero").inner_text() for b in barras]))
+    revisar("la tabla de ocupación clasifica el estado de la zona",
+            any(e in pagina.inner_text("#tabla-ocupacion")
+                for e in ["Saturada", "Alta", "Holgada", "Subutilizada"]))
 
     print("\n--- Otras pantallas cargan sin romperse")
     for ruta, selector in [

@@ -1,5 +1,6 @@
 import { supabase } from './supabaseClient.js';
 import { renderTable } from './lib/table.js';
+import { traducirErrorSupabase } from './lib/errores.js';
 
 export async function renderDashboard(container) {
   container.innerHTML = '<p class="loading">Cargando stock actual...</p>';

@@ -19,6 +19,9 @@ bitácora de auditoría. Construido sobre Supabase (PostgreSQL).
 | Formas de pago (efectivo, tarjeta, De Una, transferencia) | Funcional y probado |
 | Bitácora de auditoría | Funcional y probado |
 | Reportes de ventas, inventario y movimientos | Funcional |
+| Mapa del market (2D, 3D, tabla y ocupación) | Funcional y probado |
+| Panel flotante de consulta entre módulos | Funcional y probado |
+| Stock en tiempo real entre cajas | Funcional y probado |
 | **Facturación electrónica SRI** | **No implementado** |
 | **Envío de factura por correo** | **No implementado** |
 | **Contabilidad integral (asientos, cierres)** | **No implementado** |
@@ -45,6 +48,7 @@ En el proyecto de Supabase → **SQL Editor** → pegar y ejecutar **en orden**:
 | 4 | `db/004_ventas_promociones.sql` | Ventas, promociones, FEFO y pagos |
 | 5 | `db/005_auditoria_vistas.sql` | Bitácora de auditoría y vistas de negocio |
 | 6 | `db/006_seed_ecuador.sql` | Catálogo de 97 productos de consumo en Quito (opcional) |
+| 7 | `db/007_realtime.sql` | Sincronización de stock en vivo entre cajas |
 
 Todos los scripts son re-ejecutables sin romper nada.
 

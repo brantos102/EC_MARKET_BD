@@ -1,6 +1,7 @@
 import { supabase } from './supabaseClient.js';
 import { renderTable } from './lib/table.js';
 import { abrirModal, cerrarModal } from './lib/modal.js';
+import { traducirErrorSupabase } from './lib/errores.js';
 
 export async function renderAuditoria(container) {
   container.innerHTML = `
@@ -59,7 +60,7 @@ export async function renderAuditoria(container) {
 
     const { data, error } = await query;
     if (error) {
-      destino.innerHTML = `<p class="error">${error.message}</p>`;
+      destino.innerHTML = traducirErrorSupabase(error, 'auditoria_log');
       return;
     }
 

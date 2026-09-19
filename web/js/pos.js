@@ -2,6 +2,20 @@ import { supabase } from './supabaseClient.js';
 import { normalizarCodigoEscaneado } from './lib/ean13.js';
 import { calcularLinea, calcularImpuesto, totalizarCarrito } from './lib/pricing.js';
 import { abrirModal, cerrarModal } from './lib/modal.js';
+import { traducirErrorSupabase } from './lib/errores.js';
+import { abrirPanel } from './lib/panel.js';
+
+// Canal de tiempo real activo. Se guarda fuera de la función para poder
+// cerrarlo cuando el operador sale del punto de venta: dejar canales
+// abiertos al navegar acumula suscripciones y consume cuota de Supabase.
+let canalStock = null;
+
+export function cerrarCanalPOS() {
+  if (canalStock) {
+    supabase.removeChannel(canalStock);
+    canalStock = null;
+  }
+}
 
 export async function renderPOS(container) {
   container.innerHTML = `
@@ -38,6 +52,14 @@ export async function renderPOS(container) {
 
       <aside class="pos-derecha">
         <div class="panel pos-resumen">
+          <div class="pos-estado-linea">
+            <span id="pos-conexion" class="conexion conectando" title="Estado de la sincronización con otras cajas">
+              <i></i><span class="conexion-texto">conectando…</span>
+            </span>
+            <button id="pos-consulta" class="btn-consulta" title="Consulta rápida sin salir de la venta (F2)">
+              Consultar (F2)
+            </button>
+          </div>
           <div class="pos-cliente">
             <label>Cliente</label>
             <select id="pos-cliente"></select>
@@ -83,10 +105,17 @@ export async function renderPOS(container) {
     selCliente.appendChild(o);
   });
 
-  const { data: productos } = await supabase
+  const { data: productos, error: errProductos } = await supabase
     .from('v_pos_productos')
     .select('*')
     .eq('bodega_id', bodegaId);
+
+  if (errProductos) {
+    container.innerHTML = traducirErrorSupabase(errProductos, 'v_pos_productos');
+    return;
+  }
+
+  container.querySelector('#pos-consulta').addEventListener('click', () => abrirPanel());
 
   const hoy = new Date().toISOString().slice(0, 10);
   const promosVigentes = (promos ?? []).filter(
@@ -357,6 +386,77 @@ export async function renderPOS(container) {
       botones: [{ texto: 'Nueva venta', clase: 'btn-primary', accion: cerrarModal }],
     });
   }
+
+  // -------------------------------------------------------
+  // Sincronización en tiempo real del stock entre cajas.
+  //
+  // El problema que resuelve: dos cajas atendiendo a la vez pueden
+  // escanear la última unidad del mismo producto. La base de datos
+  // siempre rechaza la segunda venta (el trigger valida el stock al
+  // confirmar), pero sin esto el segundo cajero se entera recién al
+  // cobrar, con el cliente esperando. Escuchando los cambios de
+  // inventario_saldos, el carrito se entera en el momento.
+  //
+  // La base de datos sigue siendo la única autoridad: esto es aviso
+  // temprano, no sustituye la validación del servidor.
+  // -------------------------------------------------------
+  const indicador = container.querySelector('#pos-conexion');
+
+  function marcarConexion(estado, texto) {
+    if (!indicador.isConnected) return;
+    indicador.className = `conexion ${estado}`;
+    indicador.querySelector('.conexion-texto').textContent = texto;
+  }
+
+  cerrarCanalPOS();
+  canalStock = supabase
+    .channel('pos-stock')
+    .on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'inventario_saldos' },
+      (payload) => {
+        const fila = payload.new;
+        if (!fila || fila.bodega_id !== bodegaId) return;
+
+        const producto = productos.find((p) => p.producto_id === fila.producto_id);
+        if (!producto) return;
+
+        const anterior = Number(producto.stock);
+        producto.stock = Number(fila.stock);
+        if (anterior === producto.stock) return;
+
+        const enCarrito = carrito.find((l) => l.producto.producto_id === fila.producto_id);
+        if (enCarrito) {
+          if (enCarrito.cantidad > producto.stock) {
+            scanMsg.textContent =
+              `Otra caja acaba de vender "${producto.nombre}": quedan ${producto.stock.toFixed(2)} ` +
+              `y tienes ${enCarrito.cantidad} en el carrito. Ajusta la cantidad antes de cobrar.`;
+            scanMsg.className = 'form-msg error';
+          }
+          pintar();
+        }
+      }
+    )
+    .subscribe((estado) => {
+      if (estado === 'SUBSCRIBED') marcarConexion('conectado', 'sincronizado');
+      else if (estado === 'CHANNEL_ERROR' || estado === 'TIMED_OUT') {
+        marcarConexion('desconectado', 'sin sincronizar');
+      } else if (estado === 'CLOSED') {
+        marcarConexion('desconectado', 'desconectado');
+      }
+    });
+
+  // Si Realtime no está habilitado en el proyecto, el canal nunca llega a
+  // SUBSCRIBED. Se avisa sin alarmar: la venta funciona igual, solo que
+  // el aviso de stock llega al confirmar en vez de al instante.
+  setTimeout(() => {
+    if (indicador.isConnected && indicador.classList.contains('conectando')) {
+      marcarConexion('desconectado', 'sin sincronizar');
+      indicador.title =
+        'Realtime no está activo. La venta funciona igual: la base de datos valida ' +
+        'el stock al confirmar. Para avisos instantáneos, aplica db/007_realtime.sql.';
+    }
+  }, 6000);
 
   pintar();
   scan.focus();

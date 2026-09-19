@@ -1,5 +1,6 @@
 import { supabase } from './supabaseClient.js';
 import { renderTable } from './lib/table.js';
+import { traducirErrorSupabase } from './lib/errores.js';
 
 export async function renderCaducidades(container) {
   container.innerHTML = '<p class="loading">Revisando lotes...</p>';
@@ -10,7 +11,7 @@ export async function renderCaducidades(container) {
     .order('dias_restantes');
 
   if (error) {
-    container.innerHTML = `<p class="error">${error.message}</p>`;
+    container.innerHTML = traducirErrorSupabase(error, 'v_alertas_caducidad');
     return;
   }
 

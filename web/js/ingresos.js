@@ -1,6 +1,7 @@
 import { supabase } from './supabaseClient.js';
 import { renderTable } from './lib/table.js';
 import { normalizarCodigoEscaneado } from './lib/ean13.js';
+import { traducirErrorSupabase } from './lib/errores.js';
 
 export async function renderIngresos(container) {
   container.innerHTML = `
@@ -34,7 +35,7 @@ export async function renderIngresos(container) {
       .limit(200);
 
     if (error) {
-      destino.innerHTML = `<p class="error">${error.message}</p>`;
+      destino.innerHTML = traducirErrorSupabase(error, 'documentos_ingreso');
       return;
     }
     destino.innerHTML = '';
@@ -197,7 +198,7 @@ async function renderNuevoIngreso(root) {
 
     const destino = root.querySelector('#detalle-table');
     if (error) {
-      destino.innerHTML = `<p class="error">${error.message}</p>`;
+      destino.innerHTML = traducirErrorSupabase(error, 'documentos_ingreso');
       return;
     }
     renderTable(destino, {

@@ -1,5 +1,6 @@
 import { supabase } from './supabaseClient.js';
 import { renderTable } from './lib/table.js';
+import { traducirErrorSupabase } from './lib/errores.js';
 
 export async function renderReportes(container) {
   container.innerHTML = `
@@ -135,7 +136,7 @@ export async function renderReportes(container) {
   }
 
   function fallo(error) {
-    destino.innerHTML = `<p class="error">${error.message}</p>`;
+    destino.innerHTML = traducirErrorSupabase(error, 'v_ventas_resumen');
   }
 
   function kpis(pares) {

@@ -1,5 +1,6 @@
 import { supabase } from './supabaseClient.js';
 import { renderTable } from './lib/table.js';
+import { traducirErrorSupabase } from './lib/errores.js';
 
 const DESCRIPCION_TIPO = {
   N_POR_DOLAR: (p) => `${p.cantidad} por $${Number(p.valor).toFixed(2)}`,
@@ -139,7 +140,7 @@ export async function renderPromociones(container) {
       .order('vigencia_desde', { ascending: false });
 
     if (error) {
-      destino.innerHTML = `<p class="error">${error.message}</p>`;
+      destino.innerHTML = traducirErrorSupabase(error, 'promociones');
       return;
     }
 
