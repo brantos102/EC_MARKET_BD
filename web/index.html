@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Centro de Control - Market | Inventario</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+
+  <!-- Pantalla de login -->
+  <div id="login-screen" class="login-screen">
+    <form id="login-form" class="login-card">
+      <h1>Centro de Control - Market</h1>
+      <p class="subtitle">Módulo de Inventario</p>
+      <label for="login-email">Correo</label>
+      <input type="email" id="login-email" required autocomplete="username" />
+      <label for="login-password">Contraseña</label>
+      <input type="password" id="login-password" required autocomplete="current-password" />
+      <button type="submit">Ingresar</button>
+      <p id="login-error" class="form-msg error"></p>
+      <p class="login-hint">El usuario se crea desde Supabase Dashboard &gt; Authentication &gt; Users (ver README.md).</p>
+    </form>
+  </div>
+
+  <!-- Shell principal -->
+  <div id="app-shell" class="app-shell hidden">
+    <!-- Menú lateral fijo -->
+    <nav class="sidebar">
+      <div class="sidebar-header">
+        <strong>Centro de Control</strong>
+        <span>Market — Inventario</span>
+      </div>
+      <a href="#dashboard" class="nav-link active">Dashboard</a>
+      <a href="#productos" class="nav-link">Productos</a>
+      <a href="#bodegas" class="nav-link">Bodegas</a>
+      <a href="#movimientos" class="nav-link">Registrar movimiento</a>
+      <a href="#kardex" class="nav-link">Kardex</a>
+      <div class="sidebar-footer">
+        <span id="current-user-email"></span>
+        <button id="logout-btn" type="button">Salir</button>
+      </div>
+    </nav>
+
+    <!-- Contenido -->
+    <main class="main-content">
+      <h1 id="page-title">Dashboard</h1>
+      <div id="content"></div>
+    </main>
+  </div>
+
+  <script src="js/vendor/supabase.umd.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

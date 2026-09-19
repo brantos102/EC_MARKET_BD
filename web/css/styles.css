@@ -1,0 +1,190 @@
+:root {
+  --bg: #f4f6f8;
+  --panel: #ffffff;
+  --sidebar-bg: #1a2332;
+  --sidebar-fg: #cbd5e1;
+  --sidebar-active: #2563eb;
+  --text: #1e293b;
+  --muted: #64748b;
+  --border: #e2e8f0;
+  --ok: #16a34a;
+  --error: #dc2626;
+  --warning-bg: #fef3c7;
+  --warning-border: #f59e0b;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.hidden { display: none !important; }
+
+/* ---------- Login ---------- */
+.login-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1a2332, #2563eb);
+}
+.login-card {
+  background: var(--panel);
+  padding: 2rem 2.5rem;
+  border-radius: 12px;
+  width: 320px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+}
+.login-card h1 { font-size: 1.25rem; margin: 0 0 0.25rem; }
+.login-card .subtitle { margin: 0 0 1.25rem; color: var(--muted); font-size: 0.9rem; }
+.login-card label { display: block; font-size: 0.85rem; margin-bottom: 0.25rem; color: var(--muted); }
+.login-card input {
+  width: 100%; padding: 0.5rem 0.6rem; margin-bottom: 1rem;
+  border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem;
+}
+.login-card button {
+  width: 100%; padding: 0.6rem; background: var(--sidebar-active); color: white;
+  border: none; border-radius: 6px; font-size: 0.95rem; cursor: pointer;
+}
+.login-card button:hover { background: #1d4ed8; }
+.login-hint { font-size: 0.75rem; color: var(--muted); margin-top: 1rem; }
+
+/* ---------- Layout con menú lateral fijo ---------- */
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  position: fixed;
+  top: 0; left: 0; bottom: 0;
+  width: 220px;
+  background: var(--sidebar-bg);
+  color: var(--sidebar-fg);
+  display: flex;
+  flex-direction: column;
+  padding: 1.25rem 0;
+}
+.sidebar-header {
+  padding: 0 1.25rem 1.25rem;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  margin-bottom: 0.75rem;
+  display: flex;
+  flex-direction: column;
+}
+.sidebar-header strong { color: white; font-size: 1rem; }
+.sidebar-header span { font-size: 0.75rem; color: var(--sidebar-fg); }
+
+.nav-link {
+  display: block;
+  padding: 0.65rem 1.25rem;
+  color: var(--sidebar-fg);
+  text-decoration: none;
+  font-size: 0.9rem;
+  border-left: 3px solid transparent;
+}
+.nav-link:hover { background: rgba(255,255,255,0.06); color: white; }
+.nav-link.active {
+  background: rgba(37,99,235,0.2);
+  border-left-color: var(--sidebar-active);
+  color: white;
+  font-weight: 600;
+}
+
+.sidebar-footer {
+  margin-top: auto;
+  padding: 1rem 1.25rem 0;
+  border-top: 1px solid rgba(255,255,255,0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+}
+.sidebar-footer button {
+  background: transparent; border: 1px solid var(--sidebar-fg); color: var(--sidebar-fg);
+  padding: 0.4rem; border-radius: 6px; cursor: pointer;
+}
+.sidebar-footer button:hover { border-color: white; color: white; }
+
+.main-content {
+  margin-left: 220px;
+  padding: 2rem 2.5rem;
+  flex: 1;
+  min-width: 0;
+}
+.main-content h1 { margin-top: 0; font-size: 1.4rem; }
+
+/* ---------- Formularios inline ---------- */
+.inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  background: var(--panel);
+  padding: 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  margin-bottom: 1.25rem;
+}
+.inline-form input, .inline-form select {
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+.inline-form button {
+  padding: 0.5rem 1rem;
+  background: var(--sidebar-active);
+  color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.9rem;
+}
+.inline-form button:hover { background: #1d4ed8; }
+.form-msg { font-size: 0.85rem; }
+.form-msg.ok { color: var(--ok); }
+.form-msg.error { color: var(--error); }
+
+.preview-box {
+  background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px;
+  padding: 0.75rem 1rem; font-size: 0.85rem; margin-bottom: 1rem; line-height: 1.6;
+}
+
+/* ---------- KPIs ---------- */
+.kpi-row { display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+.kpi-card {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+  padding: 1rem 1.5rem; min-width: 160px;
+  display: flex; flex-direction: column; gap: 0.25rem;
+}
+.kpi-label { font-size: 0.8rem; color: var(--muted); }
+.kpi-value { font-size: 1.5rem; font-weight: 700; }
+.kpi-card.kpi-warning { border-color: var(--warning-border); background: var(--warning-bg); }
+
+/* ---------- Tabla dinámica ---------- */
+.dyn-table-wrap { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.dyn-table-search { padding: 0.75rem; border-bottom: 1px solid var(--border); }
+.dyn-table-search input {
+  width: 100%; max-width: 300px; padding: 0.45rem 0.6rem;
+  border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem;
+}
+.dyn-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+.dyn-table th, .dyn-table td { text-align: left; padding: 0.55rem 0.9rem; border-bottom: 1px solid var(--border); }
+.dyn-table th { background: #f8fafc; font-weight: 600; color: var(--muted); position: relative; user-select: none; }
+.dyn-table th.sortable { cursor: pointer; }
+.dyn-table th.sortable:hover { color: var(--text); }
+.dyn-table th.sort-asc::after { content: ' \25B2'; font-size: 0.7rem; }
+.dyn-table th.sort-desc::after { content: ' \25BC'; font-size: 0.7rem; }
+.dyn-table tbody tr:hover { background: #f8fafc; }
+.dyn-table tbody tr.row-warning { background: var(--warning-bg); }
+.dyn-table-empty { text-align: center; color: var(--muted); padding: 2rem 1rem !important; }
+
+.loading, .error { color: var(--muted); padding: 1rem 0; }
+.error { color: var(--error); }
+
+@media (max-width: 800px) {
+  .sidebar { position: static; width: 100%; height: auto; }
+  .main-content { margin-left: 0; padding: 1.25rem; }
+  .app-shell { flex-direction: column; }
+}
