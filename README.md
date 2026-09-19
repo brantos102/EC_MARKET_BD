@@ -1,153 +1,246 @@
 # Centro de Control - Market
 
-Sistema de gestión empresarial para el mercado ecuatoriano (inventario, facturación
-electrónica SRI, contabilidad y BI). Este repositorio contiene el **módulo de
-Inventario (Kardex por costeo Promedio Ponderado)**, entregado como MVP funcional
-y probado sobre Supabase (PostgreSQL).
+Sistema de gestión para un market de abastos en Ecuador: inventario con
+trazabilidad Kardex, ingreso de mercadería, layout físico de bodega, punto
+de venta con lectura de código de barras, promociones de temporada y
+bitácora de auditoría. Construido sobre Supabase (PostgreSQL).
 
-## ⚠️ Alcance real de esta entrega
+## Estado del proyecto
 
-Un ERP completo con **facturación electrónica certificada ante el SRI** (firma
-XAdES-BES, clave de acceso de 49 dígitos, web services de recepción/autorización,
-contingencia offline), **contabilidad integral** (asientos automáticos, cierres de
-período) y **BI/ATS** es un proyecto de varias semanas/meses, no de horas. Esta
-entrega prioriza, con acuerdo explícito, el módulo que sí se puede dejar
-**funcional y probado hoy**: inventario con trazabilidad Kardex.
+| Módulo | Estado |
+|---|---|
+| Inventario / Kardex (costeo promedio ponderado) | Funcional y probado |
+| Ingreso de mercadería con factura de proveedor | Funcional y probado |
+| Layout del market (zonas, pasillos, ubicaciones) | Funcional y probado |
+| Lotes con caducidad y consumo FEFO | Funcional y probado |
+| Punto de venta con escaneo EAN-13 | Funcional y probado |
+| Venta al por mayor y al detalle | Funcional y probado |
+| Promociones de temporada | Funcional y probado |
+| Formas de pago (efectivo, tarjeta, De Una, transferencia) | Funcional y probado |
+| Bitácora de auditoría | Funcional y probado |
+| Reportes de ventas, inventario y movimientos | Funcional |
+| **Facturación electrónica SRI** | **No implementado** |
+| **Envío de factura por correo** | **No implementado** |
+| **Contabilidad integral (asientos, cierres)** | **No implementado** |
+| **ATS y estados financieros** | **No implementado** |
 
-Los módulos de facturación, contabilidad y BI **no están implementados todavía**.
-El esquema de base de datos y la arquitectura del frontend están hechos para
-extenderse a esos módulos sin rehacer lo ya construido (ver "Próximos pasos").
+Los cuatro últimos son deliberadamente un proyecto aparte: la facturación
+electrónica certificada requiere el certificado de firma del contribuyente,
+firma XAdES-BES, clave de acceso de 49 dígitos y conexión a los web services
+de recepción y autorización del SRI, con manejo de contingencia. Eso necesita
+un backend propio, no puede hacerse desde el navegador (la clave privada del
+`.p12` nunca debe salir del servidor).
 
-## Qué incluye
+## Instalación
 
-- **Base de datos** (`db/schema.sql`): catálogos (categorías, bodegas, productos),
-  tabla de saldos por producto/bodega, ledger de movimientos (Kardex) con
-  costeo automático por **Promedio Ponderado** vía trigger de PostgreSQL, vista
-  de stock actual, y Row Level Security (solo usuarios autenticados).
-- **Frontend** (`web/`): app HTML/JS sin build step, con menú lateral fijo y
-  tablas dinámicas (ordenables y filtrables), tal como se especificó:
-  login, dashboard de stock, CRUD de productos y bodegas, registro de
-  movimientos (con vista previa del cálculo antes de guardar), y consulta de
-  Kardex por producto/bodega.
-- **Pruebas** (`tests/costing.test.mjs`): 9 pruebas unitarias sobre la lógica de
-  costeo (la misma que corre en la base de datos), todas pasando.
+### 1. Aplicar las migraciones en Supabase
 
-## 1. Aplicar el esquema en Supabase (obligatorio, ~1 minuto)
+En el proyecto de Supabase → **SQL Editor** → pegar y ejecutar **en orden**:
 
-Por política de red de este entorno en la nube no pude conectarme directamente
-a tu proyecto Supabase para aplicar el esquema, así que este único paso queda
-manual:
+| # | Archivo | Qué crea |
+|---|---|---|
+| 1 | `db/schema.sql` | Productos, bodegas, kardex y costeo promedio ponderado |
+| 2 | `db/002_catalogos_ubicaciones.sql` | Unidades, IVA parametrizable, EAN-13, layout, lotes |
+| 3 | `db/003_ingresos.sql` | Ingreso de mercadería y numeración de trazabilidad |
+| 4 | `db/004_ventas_promociones.sql` | Ventas, promociones, FEFO y pagos |
+| 5 | `db/005_auditoria_vistas.sql` | Bitácora de auditoría y vistas de negocio |
+| 6 | `db/006_seed_ecuador.sql` | Catálogo de 97 productos de consumo en Quito (opcional) |
 
-1. Entra a tu proyecto → **SQL Editor**.
-2. Pega el contenido completo de [`db/schema.sql`](db/schema.sql) → **Run**.
-3. (Opcional, para probar con datos de ejemplo) pega y corre
-   [`db/seed_ejemplo.sql`](db/seed_ejemplo.sql).
+Todos los scripts son re-ejecutables sin romper nada.
 
-## 2. Crear tu primer usuario
+### 2. Crear el usuario
 
-La app exige login (Supabase Auth) antes de mostrar cualquier dato — es lo que
-protege tu inventario detrás de la anon key pública. Crea al menos un usuario:
+**Authentication → Users → Add user** (correo y contraseña). La aplicación
+exige sesión iniciada: eso es lo que protege el inventario detrás de la
+anon key, que es pública por diseño.
 
-**Dashboard → Authentication → Users → Add user** (correo + contraseña).
+### 3. Levantar la aplicación
 
-## 3. Correr la app localmente
+Requiere un servidor HTTP: abrir `index.html` con doble clic no funciona
+porque el navegador bloquea los módulos ES sobre `file://`.
 
-No requiere `npm install` ni build, pero sí un servidor HTTP: la app usa módulos
-ES, que los navegadores bloquean si se abre `index.html` con doble clic
-(`file://`).
-
-**Windows (sin instalar nada)** — desde `web\`:
+**Windows, sin instalar nada** — desde `web\`:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\serve.ps1
 ```
 
-El script `serve.ps1` levanta un servidor con .NET (ya incluido en Windows) y
-abre el navegador solo. Para usar otro puerto: `... -File .\serve.ps1 -Port 8090`.
-
-**Linux / macOS / con Node instalado** — desde `web/`:
+**Con Python o Node** — desde `web/`:
 
 ```bash
 python3 -m http.server 8080    # o
 npx serve .
 ```
 
-Abre `http://localhost:8080` e inicia sesión con el usuario que creaste.
+**Publicado** — GitHub Pages: Settings → Pages → rama `main`, carpeta `/web`.
 
-## 4. Publicarla (GitHub Pages)
+## Cómo funciona
 
-1. En GitHub → **Settings → Pages**.
-2. Source: `Deploy from a branch` → rama `main`, carpeta `/web`.
-3. Guardar. En 1-2 minutos queda disponible en
-   `https://brantos102.github.io/EC_MARKET_BD/`.
+### Costeo: promedio ponderado
 
-(También funciona en Vercel/Netlify apuntando a la carpeta `web/` como raíz
-estática — no hay backend propio que desplegar, todo el acceso a datos pasa
-por Supabase directamente desde el navegador, protegido por RLS.)
+Método declarado explícitamente (era un vacío del documento de requisitos).
+Cada **entrada** recalcula el costo promedio; las **salidas** se valúan al
+promedio vigente y no lo modifican. El kardex es un ledger de solo
+inserción: no se puede editar ni borrar, las correcciones se hacen con un
+movimiento de ajuste. La lógica vive en `fn_procesar_movimiento_inventario`
+(PostgreSQL) y está espejada en `web/js/lib/costing.js` para la vista previa
+del frontend.
 
-## 5. Pruebas
+### Caducidad: lotes y FEFO
+
+La fecha de caducidad pertenece al **lote**, no al producto: el mismo arroz
+entra en fechas distintas. Al vender, `fn_consumir_lotes_fefo` descuenta
+primero el lote que caduca antes (*first expired, first out*), que es la
+práctica correcta en alimentos, y deja registrada la trazabilidad de qué
+lote salió en cada línea de venta.
+
+### Códigos de barras: EAN-13
+
+El dígito verificador se valida en la base de datos con un `CHECK`
+constraint, no solo en el frontend: un código mal escaneado o mal digitado
+no entra. Los productos del catálogo de ejemplo llevan prefijo **786**
+(Ecuador en GS1) con verificador calculado. El lector de códigos se maneja
+como teclado: escribe y envía Enter, y la aplicación también acepta UPC-A
+de 12 dígitos convirtiéndolo a EAN-13.
+
+### IVA parametrizable
+
+La tarifa nunca está hardcodeada. `tarifas_impuesto` guarda las vigencias
+(12% hasta marzo de 2024, 15% desde abril de 2024) y `fn_tarifa_impuesto`
+resuelve la que corresponde a la fecha de la transacción. Cuando el SRI
+cambie la tarifa, se agrega una fila: no se toca el código.
+
+La clasificación de qué producto va a 0% y cuál a tarifa general sigue el
+criterio del Art. 55 de la LRTI, **pero debe validarla el contador antes de
+facturar en producción**.
+
+### Promociones de temporada
+
+Cuatro tipos, con vigencia por fechas y alcance por producto o categoría:
+
+| Tipo | Parámetros | Ejemplo |
+|---|---|---|
+| `N_POR_DOLAR` | cantidad=3, valor=1.00 | 3 limones por $1 |
+| `N_POR_M` | cantidad=2, valor=1 | 2x1 |
+| `PORCENTAJE` | valor=20 | 20% de descuento |
+| `PRECIO_FIJO` | valor=0.40 | papa chola a $0.40 la libra |
+
+Una promoción nunca puede encarecer el producto: si el cálculo sale mayor al
+precio de lista, se ignora. Las unidades sueltas que no completan un grupo se
+cobran al precio normal.
+
+## Pruebas
 
 ```bash
-node --test tests/
+# 46 pruebas unitarias de la lógica de negocio en JavaScript
+node --test tests/costing.test.mjs tests/ean13.test.mjs tests/pricing.test.mjs
+
+# 14 pruebas funcionales contra PostgreSQL (requiere las migraciones aplicadas)
+psql "<cadena de conexión>" -f db/tests_funcionales.sql
+
+# Pruebas de interfaz con navegador headless y Supabase simulado
+node tests/harness/generar_harness.mjs
+python3 -m http.server 8765        # desde la raíz del repositorio
+python3 tests/e2e_pos.py
 ```
 
-Verifican la lógica de Promedio Ponderado: entradas recalculan el costo
-promedio, salidas lo mantienen y descuentan stock, salidas mayores al stock
-disponible lanzan error, ajustes positivos/negativos, y validaciones de
-entrada. La misma lógica está implementada en paralelo en la base de datos
-(`fn_procesar_movimiento_inventario` en `db/schema.sql`), que es la fuente de
-verdad real — el frontend solo la usa para la vista previa antes de guardar.
+Las pruebas funcionales verifican, contra una base real: validez de todos los
+EAN-13 del catálogo, rechazo de códigos con verificador incorrecto, cálculo
+de las cuatro clases de promoción, activación del precio mayorista solo sobre
+la cantidad mínima, descuento de stock y consumo FEFO al confirmar una venta,
+IVA aplicado solo a tarifa general, rechazo de venta sin stock, transición a
+PAGADA al cubrir el total, inmutabilidad del kardex y de los ingresos
+confirmados, y registro en la bitácora.
 
-También se verificó con un navegador headless que el frontend carga sin
-errores de JavaScript y muestra correctamente la pantalla de login.
+Las pruebas de interfaz manejan la aplicación real como lo haría un cajero:
+escanean siete veces el mismo código y comprueban que se agrupan en una línea
+con la promoción aplicada, que el stock insuficiente bloquea el escaneo, que
+el modal de pago calcula el cambio, que rechaza efectivo insuficiente y
+transferencias sin código, y que el mapa del market resalta la ubicación
+buscada.
 
-## 🔒 Seguridad — acción pendiente tuya
+## Normas y estándares aplicados
 
-Compartiste el token de GitHub y la `service_role/secret key` de Supabase
-directamente en el chat para esta sesión. Ambos quedan registrados en el
-historial de la conversación, así que te recomiendo **rotarlos** apenas
-termines de revisar esta entrega:
+| Norma | Dónde se aplica |
+|---|---|
+| **ISO/IEC 15420** (GS1 EAN-13) | Cálculo y validación del dígito verificador, en base de datos y frontend |
+| **ISO/IEC 27001:2022, A.8.15** (registro de eventos) | `auditoria_log`: quién, qué, cuándo y estado anterior de cada cambio, escrito por la base de datos y no alterable desde la aplicación |
+| **ISO/IEC 27001, A.8.3** (restricción de acceso) | Row Level Security en todas las tablas; el kardex y la bitácora no tienen política de escritura |
+| **ISO 8601** | Todas las fechas y marcas de tiempo (`timestamptz`) |
+| **ISO 4217** | Moneda USD |
+| **ISO/IEC 25010** (calidad de producto software) | Mantenibilidad: lógica de negocio en la base de datos con espejo en JS, migraciones versionadas y re-ejecutables, cobertura de pruebas en tres niveles |
+| **NIC 2 / NIIF** (inventarios) | Costeo por promedio ponderado con declaración explícita del método |
+| **LRTI Art. 55** (Ecuador) | Clasificación de tarifa de IVA por producto |
 
-- GitHub: **Settings → Developer settings → Personal access tokens** → revocar
-  el token usado y generar uno nuevo si lo necesitas para el futuro.
-- Supabase: **Project Settings → API** → regenerar la `service_role key`.
+Lo que **todavía no cumple** y hace falta para producción: política de
+respaldos y retención documental de 7 años (ISO/IEC 27001 A.8.13 y normativa
+tributaria), roles diferenciados por perfil de usuario —hoy todo usuario
+autenticado tiene los mismos permisos— y cifrado de datos personales de
+clientes en reposo más allá del que ya aplica Supabase.
 
-La `anon/publishable key` (la que sí quedó en `web/js/config.js`) **no
-necesita rotarse** — está diseñada para ser pública; la protección real es el
-Row Level Security del paso 1. La `service_role key` **no se usó ni se guardó
-en ningún archivo de este repositorio**.
+## Seguridad
 
-## Próximos pasos (fuera del alcance de esta entrega)
+La `anon/publishable key` está en `web/js/config.js` y **debe** estar ahí:
+es pública por diseño. La protección real es el Row Level Security. La
+`service_role key` **no está en ningún archivo del repositorio** y nunca
+debe ponerse en código que corra en el navegador.
 
-- **Facturación electrónica SRI**: generación de XML, firma XAdES-BES, clave de
-  acceso, integración a los web services de recepción/autorización del SRI,
-  manejo de contingencia. Requiere certificado de firma electrónica del
-  contribuyente.
-- **Contabilidad integral**: asientos automáticos desde compras/ventas/
-  inventario, catálogo de cuentas, cierres de período.
-- **BI y auditoría**: estados financieros, ATS (Anexo Transaccional
-  Simplificado), reportes de auditoría de 7 años de retención.
-- Roles diferenciados (hoy cualquier usuario autenticado tiene los mismos
-  permisos) y tasa de IVA parametrizable en vez de hardcodeada, para cuando se
-  construya facturación.
+Si compartiste credenciales por chat durante el desarrollo, rótalas:
+GitHub en *Settings → Developer settings → Personal access tokens*, y
+Supabase en *Project Settings → API → regenerar service_role key*.
 
-## Estructura del repositorio
+## Estructura
 
 ```
 db/
-  schema.sql          Esquema completo + costeo + RLS (aplicar en Supabase)
-  seed_ejemplo.sql     Datos de prueba opcionales
+  schema.sql                      1. Inventario y kardex
+  002_catalogos_ubicaciones.sql   2. Unidades, IVA, EAN-13, layout, lotes
+  003_ingresos.sql                3. Ingreso de mercadería
+  004_ventas_promociones.sql      4. Ventas, promociones, FEFO, pagos
+  005_auditoria_vistas.sql        5. Auditoría y vistas
+  006_seed_ecuador.sql            6. Catálogo de Quito (generado)
+  generar_seed.mjs                Generador del catálogo con EAN-13 válidos
+  tests_funcionales.sql           14 pruebas del motor de negocio
+  seed_ejemplo.sql                Datos mínimos de la primera versión
+
 web/
   index.html
+  serve.ps1                       Servidor local para Windows
   css/styles.css
   js/
-    config.js          URL + anon key (pública, segura de commitear)
+    config.js                     URL y anon key (públicas)
     supabaseClient.js
-    auth.js
-    lib/costing.js      Lógica de Promedio Ponderado (espejo del trigger SQL)
-    lib/table.js         Tabla dinámica ordenable/filtrable reutilizable
-    dashboard.js, productos.js, bodegas.js, movimientos.js, kardex.js
-    vendor/supabase.umd.js   Cliente de Supabase, empaquetado localmente
+    auth.js  app.js               Sesión y ruteo
+    pos.js                        Punto de venta
+    ingresos.js                   Ingreso de mercadería
+    layout.js                     Mapa del market
+    caducidades.js  promociones.js
+    dashboard.js  productos.js  bodegas.js  movimientos.js  kardex.js
+    reportes.js  auditoria.js
+    lib/
+      costing.js                  Promedio ponderado (espejo del trigger SQL)
+      pricing.js                  Precios y promociones (espejo del SQL)
+      ean13.js                    Validación EAN-13
+      table.js                    Tabla ordenable y filtrable
+      modal.js
+    vendor/supabase.umd.js        Cliente Supabase empaquetado local
+
 tests/
-  costing.test.mjs
+  costing.test.mjs  ean13.test.mjs  pricing.test.mjs
+  e2e_pos.py                      Pruebas de interfaz con navegador
+  harness/                        Supabase simulado para las pruebas de UI
 ```
+
+## Próximos pasos sugeridos
+
+1. **Roles de usuario** (cajero, bodeguero, administrador) con políticas RLS
+   diferenciadas. Hoy es el hueco de seguridad más grande.
+2. **Módulo de facturación electrónica SRI** en un backend propio (Python con
+   `lxml`, `signxml`, `cryptography` y `zeep` es un camino razonable), que
+   tome las ventas ya registradas y genere el XML firmado.
+3. **Devoluciones y notas de crédito**, que hoy solo se pueden reflejar con
+   ajustes manuales de inventario.
+4. **Cierre de caja por turno**, cuadrando los pagos en efectivo contra lo
+   registrado.
+5. **Arqueo físico** reutilizando la experiencia de ITSANET IMS: conteo por
+   ubicación usando el layout ya construido.

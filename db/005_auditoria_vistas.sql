@@ -141,7 +141,8 @@ where p.activo = true and b.activa = true;
 -- ---------------------------------------------------------
 -- VISTA: alertas de caducidad
 -- ---------------------------------------------------------
-create or replace view v_alertas_caducidad as
+drop view if exists v_alertas_caducidad cascade;
+create view v_alertas_caducidad as
 select
   l.id as lote_id,
   l.codigo_lote,
@@ -174,7 +175,8 @@ where l.cantidad_disponible > 0
 -- ---------------------------------------------------------
 -- VISTA: ocupación del layout
 -- ---------------------------------------------------------
-create or replace view v_ocupacion_layout as
+drop view if exists v_ocupacion_layout cascade;
+create view v_ocupacion_layout as
 select
   z.id as zona_id,
   z.codigo as zona_codigo,
@@ -206,13 +208,15 @@ left join inventario_saldos s on s.producto_id = p.id;
 -- ---------------------------------------------------------
 -- VISTA: búsqueda rápida para el punto de venta
 -- ---------------------------------------------------------
-create or replace view v_pos_productos as
+drop view if exists v_pos_productos cascade;
+create view v_pos_productos as
 select
   p.id as producto_id,
   p.codigo,
   p.ean13,
   p.nombre,
   p.marca,
+  c.id as categoria_id,
   c.nombre as categoria,
   um.codigo as unidad,
   um.permite_fraccion,
@@ -236,7 +240,8 @@ where p.activo and b.activa;
 -- ---------------------------------------------------------
 -- VISTA: resumen de ventas por día
 -- ---------------------------------------------------------
-create or replace view v_ventas_resumen as
+drop view if exists v_ventas_resumen cascade;
+create view v_ventas_resumen as
 select
   v.fecha,
   v.tipo_venta,
@@ -252,7 +257,8 @@ group by v.fecha, v.tipo_venta;
 -- ---------------------------------------------------------
 -- VISTA: productos más vendidos
 -- ---------------------------------------------------------
-create or replace view v_productos_mas_vendidos as
+drop view if exists v_productos_mas_vendidos cascade;
+create view v_productos_mas_vendidos as
 select
   p.id as producto_id,
   p.codigo,
