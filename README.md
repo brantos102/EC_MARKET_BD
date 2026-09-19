@@ -52,12 +52,24 @@ protege tu inventario detrás de la anon key pública. Crea al menos un usuario:
 
 ## 3. Correr la app localmente
 
-No requiere `npm install` ni build. Desde `web/`:
+No requiere `npm install` ni build, pero sí un servidor HTTP: la app usa módulos
+ES, que los navegadores bloquean si se abre `index.html` con doble clic
+(`file://`).
+
+**Windows (sin instalar nada)** — desde `web\`:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\serve.ps1
+```
+
+El script `serve.ps1` levanta un servidor con .NET (ya incluido en Windows) y
+abre el navegador solo. Para usar otro puerto: `... -File .\serve.ps1 -Port 8090`.
+
+**Linux / macOS / con Node instalado** — desde `web/`:
 
 ```bash
-cd web
-python3 -m http.server 8080
-# o: npx serve .
+python3 -m http.server 8080    # o
+npx serve .
 ```
 
 Abre `http://localhost:8080` e inicia sesión con el usuario que creaste.
