@@ -13,7 +13,10 @@
   const DATOS = {
     bodegas: [{ id: BODEGA, nombre: 'Bodega Principal', activa: true }],
     clientes: [
-      { id: 'cli-1', identificacion: '9999999999999', nombre: 'CONSUMIDOR FINAL', activo: true },
+      { id: 'cli-1', identificacion: '9999999999999', nombre: 'CONSUMIDOR FINAL',
+        tipo_identificacion: 'CONSUMIDOR_FINAL', activo: true },
+      { id: 'cli-2', identificacion: '1710034065', nombre: 'MARIA LOPEZ',
+        tipo_identificacion: 'CEDULA', email: 'maria@correo.ec', telefono: '0999123456', activo: true },
     ],
     promociones: [
       {
@@ -318,6 +321,8 @@
         valor_impuesto: 0,
         total: 2.8,
         estado: 'CONFIRMADA',
+        tipo_comprobante: 'NOTA_VENTA',
+        numero_comprobante: '001-001-000000001',
       };
     }
 
@@ -350,6 +355,24 @@
     if (nombre === 'fn_mi_perfil') {
       return { data: [{ usuario_id: 'u-1', nombre: 'prueba@itsanet.com', rol: 'ADMIN',
                         bodega_id: BODEGA, tipo_negocio: 'MARKET' }], error: null };
+    }
+    if (nombre === 'fn_buscar_cliente') {
+      const id = (args?.p_identificacion ?? '').trim();
+      const cli = DATOS.clientes.find((c) => c.identificacion === id);
+      return { data: cli ? [{ ...cli, tipo_identificacion: cli.tipo_identificacion ?? 'CEDULA' }] : [], error: null };
+    }
+    if (nombre === 'fn_registrar_cliente') {
+      window.__ESCRITURAS.push({ tabla: 'rpc:fn_registrar_cliente', operacion: 'rpc', payload: args });
+      const nuevo = {
+        id: 'cli-nuevo', identificacion: args.p_identificacion,
+        nombre: args.p_nombre, tipo_identificacion: 'CEDULA', activo: true,
+      };
+      DATOS.clientes.push(nuevo);
+      return { data: 'cli-nuevo', error: null };
+    }
+    if (nombre === 'fn_registrar_proveedor') {
+      window.__ESCRITURAS.push({ tabla: 'rpc:fn_registrar_proveedor', operacion: 'rpc', payload: args });
+      return { data: 'prov-nuevo', error: null };
     }
     if (nombre === 'fn_emitir_token') {
       window.__ESCRITURAS.push({ tabla: 'rpc:fn_emitir_token', operacion: 'rpc', payload: args });

@@ -1,13 +1,29 @@
 :root {
-  --bg: #f4f6f8;
+  /* ---------------------------------------------------------
+     Paleta de Minimarket El Cultivo.
+     Los verdes salen del propio logotipo (#015014 es el color del
+     aro y del texto "EL CULTIVO"); el amarillo es el del carrito.
+     El verde de acción (--marca) se eligió dentro de la banda de
+     luminosidad que exige el validador de accesibilidad y pasa
+     contraste 3:1 sobre blanco, así que sirve igual para botones,
+     enlaces y para las barras de los gráficos.
+     --------------------------------------------------------- */
+  --marca-profundo: #013D10;   /* barra lateral */
+  --marca-oscuro:   #015014;   /* aro del logotipo */
+  --marca:          #17803A;   /* acciones, validado para gráficos */
+  --marca-claro:    #2E9E44;
+  --marca-suave:    #E8F5EC;   /* fondos de resalte */
+  --acento:         #F5C518;   /* amarillo del carrito */
+
+  --bg: #f5f8f5;
   --panel: #ffffff;
-  --sidebar-bg: #1a2332;
-  --sidebar-fg: #cbd5e1;
-  --sidebar-active: #2563eb;
-  --text: #1e293b;
-  --muted: #64748b;
-  --border: #e2e8f0;
-  --ok: #16a34a;
+  --sidebar-bg: var(--marca-profundo);
+  --sidebar-fg: #c9e2cf;
+  --sidebar-active: var(--marca);
+  --text: #16241a;
+  --muted: #5f7566;
+  --border: #dde8e0;
+  --ok: #17803A;
   --error: #dc2626;
   --warning-bg: #fef3c7;
   --warning-border: #f59e0b;
@@ -30,7 +46,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #1a2332, #2563eb);
+  background: linear-gradient(135deg, #013D10 0%, #17803A 55%, #2E9E44 100%);
 }
 .login-card {
   background: var(--panel);
@@ -50,7 +66,7 @@ body {
   width: 100%; padding: 0.6rem; background: var(--sidebar-active); color: white;
   border: none; border-radius: 6px; font-size: 0.95rem; cursor: pointer;
 }
-.login-card button:hover { background: #1d4ed8; }
+.login-card button:hover { background: var(--marca-claro); }
 .login-hint { font-size: 0.75rem; color: var(--muted); margin-top: 1rem; }
 
 /* ---------- Layout con menú lateral fijo ---------- */
@@ -89,7 +105,7 @@ body {
 }
 .nav-link:hover { background: rgba(255,255,255,0.06); color: white; }
 .nav-link.active {
-  background: rgba(37,99,235,0.2);
+  background: rgba(46,158,68,0.22);
   border-left-color: var(--sidebar-active);
   color: white;
   font-weight: 600;
@@ -141,13 +157,13 @@ body {
   background: var(--sidebar-active);
   color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.9rem;
 }
-.inline-form button:hover { background: #1d4ed8; }
+.inline-form button:hover { background: var(--marca-claro); }
 .form-msg { font-size: 0.85rem; }
 .form-msg.ok { color: var(--ok); }
 .form-msg.error { color: var(--error); }
 
 .preview-box {
-  background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px;
+  background: var(--marca-suave); border: 1px solid #b9e6c8; border-radius: 8px;
   padding: 0.75rem 1rem; font-size: 0.85rem; margin-bottom: 1rem; line-height: 1.6;
 }
 
@@ -229,7 +245,7 @@ body {
   padding: 0.55rem 1.1rem; background: var(--sidebar-active); color: #fff;
   border: none; border-radius: 6px; cursor: pointer; font-size: 0.9rem;
 }
-.btn-primary:hover { background: #1d4ed8; }
+.btn-primary:hover { background: var(--marca-claro); }
 .btn-primary:disabled { background: #94a3b8; cursor: not-allowed; }
 .btn-secundario {
   padding: 0.55rem 1.1rem; background: transparent; color: var(--text);
@@ -258,7 +274,7 @@ body.modo-pos .main-content { padding: 1.25rem 1.5rem; }
   width: 100%; padding: 0.85rem 1rem; font-size: 1.15rem; font-family: ui-monospace, monospace;
   border: 2px solid var(--sidebar-active); border-radius: 8px; letter-spacing: 0.03em;
 }
-.scan-input:focus { outline: none; box-shadow: 0 0 0 3px rgba(37,99,235,0.15); }
+.scan-input:focus { outline: none; box-shadow: 0 0 0 3px rgba(23,128,58,0.18); }
 
 .sugerencias { display: flex; flex-direction: column; gap: 0.25rem; margin-top: 0.5rem; }
 .sugerencia {
@@ -266,7 +282,7 @@ body.modo-pos .main-content { padding: 1.25rem 1.5rem; }
   text-align: left; padding: 0.5rem 0.75rem; background: #f8fafc;
   border: 1px solid var(--border); border-radius: 6px; cursor: pointer;
 }
-.sugerencia:hover { background: #eff6ff; border-color: var(--sidebar-active); }
+.sugerencia:hover { background: var(--marca-suave); border-color: var(--sidebar-active); }
 .sug-nombre { font-weight: 600; font-size: 0.9rem; }
 .sug-meta { grid-column: 1; font-size: 0.75rem; color: var(--muted); }
 .sug-precio { grid-row: 1 / 3; align-self: center; font-weight: 700; color: var(--sidebar-active); }
@@ -402,8 +418,8 @@ body.modo-pos .main-content { padding: 1.25rem 1.5rem; }
   position: relative; border: 1px solid transparent;
 }
 .celda.vacia { background: #e2e8f0; color: #94a3b8; }
-.celda.ocupada { background: #dbeafe; border-color: #93c5fd; cursor: pointer; }
-.celda.ocupada:hover { background: #bfdbfe; }
+.celda.ocupada { background: #d6f0dd; border-color: #8fd3a5; cursor: pointer; }
+.celda.ocupada:hover { background: #b9e6c8; }
 .celda.sin-stock { background: #fee2e2; border-color: #fca5a5; cursor: pointer; }
 .celda.resaltada { outline: 3px solid #f59e0b; outline-offset: 1px; z-index: 2; }
 .celda-nivel {
@@ -492,7 +508,7 @@ body.modo-pos .main-content { padding: 1.25rem 1.5rem; }
 
 .pf-tarjeta {
   border: 1px solid var(--border); border-radius: 8px;
-  padding: 0.6rem 0.7rem; background: #fbfdff;
+  padding: 0.6rem 0.7rem; background: #fafdfb;
 }
 .pf-tarjeta.pf-bajo { border-color: var(--warning-border); background: var(--warning-bg); }
 .pf-tarjeta-head { display: flex; align-items: baseline; gap: 0.4rem; flex-wrap: wrap; }
@@ -576,7 +592,7 @@ body.modo-pos .main-content { padding: 1.25rem 1.5rem; }
 }
 .leyenda-mapa span { display: flex; align-items: center; gap: 0.35rem; }
 .lg { width: 13px; height: 13px; border-radius: 3px; display: inline-block; border: 1px solid transparent; }
-.lg.ocupada   { background: #dbeafe; border-color: #93c5fd; }
+.lg.ocupada   { background: #d6f0dd; border-color: #8fd3a5; }
 .lg.sin-stock { background: #fee2e2; border-color: #fca5a5; }
 .lg.vacia     { background: #e2e8f0; }
 
@@ -613,7 +629,7 @@ body.modo-pos .main-content { padding: 1.25rem 1.5rem; }
   border: 1px solid rgba(15,23,42,0.15);
 }
 .caja-3d.vacia    { background: rgba(226,232,240,0.85); color: #94a3b8; }
-.caja-3d.ocupada  { background: rgba(219,234,254,0.95); color: #1e3a5f; cursor: pointer; }
+.caja-3d.ocupada  { background: rgba(214,240,221,0.96); color: #0d3d1c; cursor: pointer; }
 .caja-3d.sin-stock{ background: rgba(254,226,226,0.95); color: #7f1d1d; cursor: pointer; }
 .caja-3d.ocupada:hover, .caja-3d.sin-stock:hover { background: #fde68a; }
 .caja-3d.resaltada { outline: 3px solid #f59e0b; z-index: 5; }
@@ -633,7 +649,7 @@ body.modo-pos .main-content { padding: 1.25rem 1.5rem; }
 /* ---------- Barras de ocupación ---------- */
 .viz-root {
   --viz-surface: #ffffff;
-  --viz-serie-1: #2a78d6;
+  --viz-serie-1: #17803A;
   --viz-texto: #1e293b;
   --viz-texto-sec: #64748b;
   --viz-pista: #eef2f7;
@@ -681,7 +697,7 @@ body.modo-pos .main-content { padding: 1.25rem 1.5rem; }
   padding: 0.4rem 0.55rem; border-radius: 5px; cursor: pointer;
   display: flex; flex-direction: column; gap: 0.1rem;
 }
-.ac-opcion.activa { background: #eff6ff; }
+.ac-opcion.activa { background: var(--marca-suave); }
 .ac-texto { font-size: 0.88rem; font-weight: 600; }
 .ac-texto mark { background: #fde68a; padding: 0 1px; border-radius: 2px; }
 .ac-sec { font-size: 0.72rem; color: var(--muted); font-family: ui-monospace, monospace; }
@@ -780,3 +796,115 @@ body.modo-pos .main-content { padding: 1.25rem 1.5rem; }
 }
 .form-empresa .ancho-completo { grid-column: 1 / -1; }
 @media (max-width: 800px) { .form-empresa { grid-template-columns: 1fr; } }
+
+/* =========================================================
+   Identidad de Minimarket El Cultivo
+   ========================================================= */
+
+.login-logo { width: 100%; max-width: 230px; display: block; margin: 0 auto 0.5rem; }
+.login-card .subtitle { text-align: center; font-style: italic; color: var(--marca); font-weight: 500; }
+
+.sidebar-header { align-items: center; text-align: center; padding-bottom: 0.9rem; }
+/* El logotipo ya trae su propio aro verde y el texto dentro del cuadrado.
+   Recortarlo en círculo escondía el aro y dejaba ver solo el centro blanco,
+   así que se muestra completo sobre una placa blanca redondeada. */
+.logo-menu {
+  width: 152px; height: auto; display: block;
+  background: #fff; border-radius: 14px; padding: 6px;
+  box-shadow: 0 3px 14px rgba(0,0,0,0.3);
+}
+.lema {
+  font-size: 0.68rem; font-style: italic; color: var(--acento);
+  margin-top: 0.5rem; line-height: 1.3;
+}
+
+/* Barra lateral con el degradado del aro del logotipo */
+.sidebar {
+  background: linear-gradient(180deg, #013D10 0%, #014F14 58%, #01360E 100%);
+}
+.nav-link.active {
+  border-left-color: var(--acento);
+}
+.nav-link.destacado::before { color: var(--acento); }
+.nav-grupo { color: #7fae8c; }
+
+/* Botón de perfil en el pie del menú */
+.btn-perfil {
+  display: flex !important; align-items: center; gap: 0.5rem;
+  width: 100%; text-align: left; padding: 0.45rem 0.5rem !important;
+  background: rgba(255,255,255,0.07) !important;
+  border: 1px solid rgba(255,255,255,0.16) !important;
+  border-radius: 8px !important; cursor: pointer;
+}
+.btn-perfil:hover { background: rgba(255,255,255,0.14) !important; }
+.perfil-avatar {
+  width: 30px; height: 30px; flex-shrink: 0; border-radius: 50%;
+  background: var(--acento); color: #013D10;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 0.9rem; text-transform: uppercase;
+}
+.perfil-datos { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.perfil-datos #current-user-email {
+  font-size: 0.72rem; color: #e6f3ea;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* Menú más legible: separadores y estados */
+.nav-grupo {
+  border-top: 1px solid rgba(255,255,255,0.09);
+  margin-top: 0.35rem; padding-top: 0.8rem;
+}
+.nav-grupo:first-of-type { border-top: none; margin-top: 0; }
+.nav-link { transition: background 0.12s, border-color 0.12s; }
+
+/* ---------- Tarjeta de cliente / comprobante en la caja ---------- */
+.tarjeta-cliente {
+  display: flex; flex-direction: column; gap: 0.15rem; width: 100%;
+  text-align: left; padding: 0.6rem 0.75rem; margin-bottom: 0.85rem;
+  background: var(--marca-suave); border: 1px solid #b9e6c8;
+  border-radius: 8px; cursor: pointer;
+}
+.tarjeta-cliente:hover { background: #d8efdf; }
+.tc-tipo {
+  font-size: 0.62rem; font-weight: 700; letter-spacing: 0.07em;
+  color: var(--marca); text-transform: uppercase;
+}
+.tc-tipo.es-factura { color: #fff; background: var(--marca); padding: 0.1rem 0.4rem; border-radius: 4px; align-self: flex-start; }
+.tc-nombre { font-size: 0.88rem; font-weight: 600; color: var(--text); }
+.tc-id { font-size: 0.72rem; color: var(--muted); font-family: ui-monospace, monospace; }
+.tc-cambiar { font-size: 0.68rem; color: var(--marca); text-decoration: underline; margin-top: 0.15rem; }
+
+/* ---------- Selector de comprobante ---------- */
+.sel-comprobante { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; margin-bottom: 1rem; }
+.opcion-comprobante {
+  display: flex; flex-direction: column; gap: 0.2rem; padding: 0.75rem;
+  border: 2px solid var(--border); border-radius: 8px;
+  background: var(--panel); cursor: pointer; text-align: left;
+}
+.opcion-comprobante b { font-size: 0.92rem; }
+.opcion-comprobante span { font-size: 0.72rem; color: var(--muted); line-height: 1.35; }
+.opcion-comprobante.activa { border-color: var(--marca); background: var(--marca-suave); }
+
+.etq { display: block; font-size: 0.78rem; color: var(--muted); margin-bottom: 0.25rem; }
+.fila-busqueda { display: flex; gap: 0.4rem; }
+.fila-busqueda input {
+  flex: 1; padding: 0.55rem 0.7rem; font-size: 1.05rem;
+  border: 2px solid var(--marca); border-radius: 6px; font-family: ui-monospace, monospace;
+}
+.panel-cliente {
+  margin-top: 0.7rem; padding: 0.7rem; background: var(--marca-suave);
+  border: 1px solid #b9e6c8; border-radius: 8px;
+}
+.btn-primary.ancho { width: 100%; margin-top: 0.6rem; }
+.form-cliente { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.7rem; }
+.form-cliente label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.78rem; color: var(--muted); }
+.form-cliente input {
+  padding: 0.45rem 0.6rem; border: 1px solid var(--border);
+  border-radius: 6px; font-size: 0.9rem; color: var(--text);
+}
+
+/* ---------- Perfil ---------- */
+.perfil-cabecera { display: flex; gap: 0.8rem; align-items: center; margin-bottom: 1rem; }
+.perfil-avatar.grande { width: 52px; height: 52px; font-size: 1.5rem; }
+.lista-permisos { margin: 0.4rem 0 0; padding-left: 1.1rem; font-size: 0.85rem; line-height: 1.7; }
+.lista-permisos li { margin-bottom: 0.1rem; }

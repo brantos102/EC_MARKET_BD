@@ -5,9 +5,11 @@ import { traducirErrorSupabase } from './lib/errores.js';
 import { abrirPanel } from './lib/panel.js';
 import { autocompletar } from './lib/autocomplete.js';
 import { fijarCatalogo, actualizarPanelVenta } from './lib/panel-venta.js';
+import { abrirSelectorCliente } from './lib/cliente-venta.js';
+import { imprimirComprobante } from './lib/comprobante.js';
 import {
   configurar, fijarTipoVenta, agregar, cambiarCantidad, vaciar,
-  lineasCalculadas, totales, obtenerEstado, actualizarStock, suscribir,
+  lineasCalculadas, totales, obtenerEstado, actualizarStock, suscribir, reiniciarCliente,
 } from './lib/venta-activa.js';
 
 // Canal de tiempo real activo. Se cierra al salir del punto de venta
@@ -69,10 +71,12 @@ export async function renderPOS(container) {
               Consultar (F2)
             </button>
           </div>
-          <div class="pos-cliente">
-            <label>Cliente</label>
-            <select id="pos-cliente"></select>
-          </div>
+          <button type="button" id="pos-cliente-btn" class="tarjeta-cliente">
+            <span class="tc-tipo" id="pos-tipo-comp">NOTA DE VENTA</span>
+            <span class="tc-nombre" id="pos-cliente-nombre">CONSUMIDOR FINAL</span>
+            <span class="tc-id" id="pos-cliente-id">9999999999999</span>
+            <span class="tc-cambiar">Cambiar / facturar</span>
+          </button>
           <div class="pos-total-linea"><span>Subtotal</span><b id="pos-subtotal">$0.00</b></div>
           <div class="pos-total-linea descuento"><span>Descuentos</span><b id="pos-descuento">-$0.00</b></div>
           <div class="pos-total-linea"><span>IVA</span><b id="pos-iva">$0.00</b></div>
@@ -100,14 +104,33 @@ export async function renderPOS(container) {
 
   const bodegaId = obtenerEstado().bodegaId ?? bodegas?.[0]?.id ?? null;
 
-  const selCliente = container.querySelector('#pos-cliente');
-  (clientes ?? []).forEach((c) => {
-    const o = document.createElement('option');
-    o.value = c.id;
-    o.textContent = `${c.nombre} (${c.identificacion})`;
-    selCliente.appendChild(o);
+  const consumidorFinal = (clientes ?? []).find((c) => c.identificacion === '9999999999999');
+  if (!obtenerEstado().clienteId && consumidorFinal) {
+    configurar({ clienteId: consumidorFinal.id });
+  }
+
+  function pintarCliente() {
+    const e = obtenerEstado();
+    container.querySelector('#pos-tipo-comp').textContent =
+      e.tipoComprobante === 'FACTURA' ? 'FACTURA' : 'NOTA DE VENTA';
+    container.querySelector('#pos-tipo-comp').className =
+      `tc-tipo ${e.tipoComprobante === 'FACTURA' ? 'es-factura' : ''}`;
+    container.querySelector('#pos-cliente-nombre').textContent = e.clienteNombre ?? 'CONSUMIDOR FINAL';
+    container.querySelector('#pos-cliente-id').textContent = e.clienteIdentificacion ?? '9999999999999';
+  }
+
+  container.querySelector('#pos-cliente-btn').addEventListener('click', () => {
+    abrirSelectorCliente(obtenerEstado(), (sel) => {
+      configurar({
+        clienteId: sel.clienteId ?? consumidorFinal?.id ?? null,
+        clienteNombre: sel.nombre,
+        clienteIdentificacion: sel.identificacion,
+        tipoComprobante: sel.tipoComprobante,
+      });
+      pintarCliente();
+      scan.focus();
+    });
   });
-  if (obtenerEstado().clienteId) selCliente.value = obtenerEstado().clienteId;
 
   const { data: productos, error: errProductos } = await supabase
     .from('v_pos_productos').select('*').eq('bodega_id', bodegaId);
@@ -119,10 +142,9 @@ export async function renderPOS(container) {
 
   catalogo = productos ?? [];
   fijarCatalogo(() => catalogo);
-  configurar({ bodegaId, clienteId: selCliente.value, promos: promos ?? [] });
+  configurar({ bodegaId, promos: promos ?? [] });
 
   container.querySelector('#pos-consulta').addEventListener('click', () => abrirPanel());
-  selCliente.addEventListener('change', () => configurar({ clienteId: selCliente.value }));
 
   // Marcar el tipo de venta que ya tenía la venta en curso
   const tipoActual = obtenerEstado().tipoVenta;
@@ -222,6 +244,8 @@ export async function renderPOS(container) {
         cerrarModal();
         mostrarComprobante(resultado);
         vaciar();
+        reiniciarCliente(consumidorFinal?.id);
+        pintarCliente();
         await refrescarStock();
         scan.focus();
       } catch (err) {
@@ -239,9 +263,10 @@ export async function renderPOS(container) {
     const { data: venta, error: errVenta } = await supabase
       .from('ventas')
       .insert({
-        cliente_id: estado.clienteId ?? selCliente.value,
+        cliente_id: estado.clienteId,
         bodega_id: estado.bodegaId,
         tipo_venta: estado.tipoVenta,
+        tipo_comprobante: estado.tipoComprobante,
         usuario_id: user?.id ?? null,
       })
       .select('id, numero_interno')
@@ -283,7 +308,7 @@ export async function renderPOS(container) {
 
   function mostrarComprobante(venta) {
     abrirModal({
-      titulo: `Venta ${venta.numero_interno} registrada`,
+      titulo: `${venta.tipo_comprobante === 'FACTURA' ? 'Factura' : 'Nota de venta'} ${venta.numero_comprobante ?? venta.numero_interno}`,
       contenido: `
         <div class="comprobante">
           <div class="comp-linea"><span>Subtotal</span><b>$${Number(venta.subtotal).toFixed(2)}</b></div>
@@ -292,7 +317,16 @@ export async function renderPOS(container) {
           <div class="comp-linea grande"><span>TOTAL</span><b>$${Number(venta.total).toFixed(2)}</b></div>
           <p class="nota">Estado: ${venta.estado}. El stock ya fue descontado y los lotes asignados por FEFO.</p>
         </div>`,
-      botones: [{ texto: 'Nueva venta', clase: 'btn-primary', accion: cerrarModal }],
+      botones: [
+        { texto: 'Imprimir comprobante', clase: 'btn-secundario', accion: async () => {
+            try {
+              await imprimirComprobante(venta.id);
+            } catch (err) {
+              alert(`No se pudo generar el comprobante: ${err.message}`);
+            }
+          } },
+        { texto: 'Nueva venta', clase: 'btn-primary', accion: cerrarModal },
+      ],
     });
   }
 
@@ -341,6 +375,7 @@ export async function renderPOS(container) {
   }, 6000);
 
   pintar();
+  pintarCliente();
   actualizarPanelVenta();
   scan.focus();
 }

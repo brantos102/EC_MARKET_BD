@@ -17,6 +17,9 @@ const estado = {
   lineas: [],          // { producto, cantidad }
   tipoVenta: 'MENOR',
   clienteId: null,
+  clienteNombre: 'CONSUMIDOR FINAL',
+  clienteIdentificacion: '9999999999999',
+  tipoComprobante: 'NOTA_VENTA',
   bodegaId: null,
   promos: [],
 };
@@ -69,10 +72,23 @@ export function totales() {
 // ---------------------------------------------------------
 // Escritura
 // ---------------------------------------------------------
-export function configurar({ bodegaId, clienteId, promos }) {
+export function configurar({ bodegaId, clienteId, promos,
+                             clienteNombre, clienteIdentificacion, tipoComprobante }) {
   if (bodegaId !== undefined) estado.bodegaId = bodegaId;
   if (clienteId !== undefined) estado.clienteId = clienteId;
   if (promos !== undefined) estado.promos = promos;
+  if (clienteNombre !== undefined) estado.clienteNombre = clienteNombre;
+  if (clienteIdentificacion !== undefined) estado.clienteIdentificacion = clienteIdentificacion;
+  if (tipoComprobante !== undefined) estado.tipoComprobante = tipoComprobante;
+  notificar();
+}
+
+/** Tras cobrar se vuelve a consumidor final: es el caso por defecto. */
+export function reiniciarCliente(clienteIdConsumidorFinal) {
+  estado.clienteId = clienteIdConsumidorFinal ?? estado.clienteId;
+  estado.clienteNombre = 'CONSUMIDOR FINAL';
+  estado.clienteIdentificacion = '9999999999999';
+  estado.tipoComprobante = 'NOTA_VENTA';
   notificar();
 }
 

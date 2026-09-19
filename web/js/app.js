@@ -17,6 +17,7 @@ import { alternarPanel } from './lib/panel.js';
 import { actualizarPanelVenta } from './lib/panel-venta.js';
 import { renderAdmin } from './admin.js';
 import { aplicarRolEnMenu, limpiarPerfil } from './lib/sesion.js';
+import { abrirPerfil } from './lib/perfil.js';
 
 const routes = {
   dashboard:    { render: renderDashboard,    title: 'Dashboard' },
@@ -69,6 +70,7 @@ async function navigate() {
 window.addEventListener('hashchange', navigate);
 
 document.getElementById('btn-consulta-global')?.addEventListener('click', alternarPanel);
+document.getElementById('btn-perfil')?.addEventListener('click', abrirPerfil);
 
 onAuthReady(async (session) => {
   if (!session) {
@@ -76,5 +78,7 @@ onAuthReady(async (session) => {
     return;
   }
   await aplicarRolEnMenu();
+  const inicial = document.getElementById('perfil-inicial');
+  if (inicial) inicial.textContent = (session.user?.email ?? '?').charAt(0);
   navigate();
 });

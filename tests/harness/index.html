@@ -3,7 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>[PRUEBAS] Centro de Control - Market | Inventario</title>
+  <title>[PRUEBAS] Minimarket El Cultivo | Sistema de Gestión</title>
+  <link rel="icon" href="../../web/img/favicon.ico" sizes="any" />
+  <link rel="apple-touch-icon" href="../../web/img/apple-touch-icon.png" />
+  <meta name="theme-color" content="#013D10" />
   <link rel="stylesheet" href="../../web/css/styles.css" />
 </head>
 <body>
@@ -11,8 +14,8 @@
   <!-- Pantalla de login -->
   <div id="login-screen" class="login-screen">
     <form id="login-form" class="login-card">
-      <h1>Centro de Control - Market</h1>
-      <p class="subtitle">Módulo de Inventario</p>
+      <img src="../../web/img/logo.png" alt="Minimarket El Cultivo" class="login-logo" />
+      <p class="subtitle">Frescura y calidad en cada compra</p>
       <label for="login-email">Correo</label>
       <input type="email" id="login-email" required autocomplete="username" />
       <label for="login-password">Contraseña</label>
@@ -28,8 +31,8 @@
     <!-- Menú lateral fijo -->
     <nav class="sidebar">
       <div class="sidebar-header">
-        <strong>Centro de Control</strong>
-        <span>Market — Inventario</span>
+        <img src="../../web/img/logo-menu.png" alt="Minimarket El Cultivo" class="logo-menu" />
+        <span class="lema">Frescura y calidad en cada compra</span>
       </div>
       <div class="nav-grupo">Operación</div>
       <a href="#dashboard" class="nav-link active">Dashboard</a>
@@ -56,8 +59,13 @@
                 title="Abre una ventana flotante de consulta que se queda abierta al cambiar de módulo">
           Consulta rápida <kbd>F2</kbd>
         </button>
-        <span id="current-user-email"></span>
-        <span id="rol-actual" class="rol-chip"></span>
+        <button id="btn-perfil" type="button" class="btn-perfil" title="Ver mi perfil y permisos">
+          <span class="perfil-avatar" id="perfil-inicial">·</span>
+          <span class="perfil-datos">
+            <span id="current-user-email"></span>
+            <span id="rol-actual" class="rol-chip"></span>
+          </span>
+        </button>
         <button id="logout-btn" type="button">Salir</button>
       </div>
     </nav>

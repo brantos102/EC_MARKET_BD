@@ -379,6 +379,74 @@ with sync_playwright() as p:
             any(e in pagina.inner_text("#tabla-ocupacion")
                 for e in ["Saturada", "Alta", "Holgada", "Subutilizada"]))
 
+    print("\n--- Identidad de la marca")
+    revisar("el menú muestra el logotipo de El Cultivo",
+            pagina.is_visible(".logo-menu"))
+    revisar("aparece el lema de la empresa",
+            "Frescura y calidad" in pagina.inner_text(".lema"))
+    revisar("el título de la pestaña es el del minimarket",
+            "El Cultivo" in pagina.title(), f"(dice '{pagina.title()}')")
+    revisar("el botón de perfil está disponible", pagina.is_visible("#btn-perfil"))
+
+    pagina.click("#btn-perfil")
+    pagina.wait_for_selector(".lista-permisos", timeout=5000)
+    revisar("el perfil detalla lo que permite el rol",
+            "Vender" in pagina.inner_text(".lista-permisos"))
+    revisar("el perfil muestra el rol de la sesión",
+            "admin" in pagina.inner_text(".modal .rol-chip").lower())
+    pagina.click(".modal-cerrar")
+    pagina.wait_for_timeout(250)
+
+    print("\n--- Cliente y tipo de comprobante en la caja")
+    pagina.evaluate("location.hash = '#pos'")
+    pagina.wait_for_selector("#pos-scan", timeout=8000)
+    pagina.wait_for_timeout(500)
+    revisar("por defecto sale nota de venta a consumidor final",
+            "NOTA DE VENTA" in pagina.inner_text("#pos-tipo-comp")
+            and "CONSUMIDOR FINAL" in pagina.inner_text("#pos-cliente-nombre"))
+
+    pagina.click("#pos-cliente-btn")
+    pagina.wait_for_selector(".sel-comprobante", timeout=5000)
+    revisar("ofrece elegir entre consumidor final y factura",
+            len(pagina.query_selector_all(".opcion-comprobante")) == 2)
+
+    pagina.click('.opcion-comprobante[data-tipo="FACTURA"]')
+    pagina.wait_for_timeout(250)
+    revisar("al elegir factura pide la identificación",
+            pagina.is_visible("#cli-identificacion"))
+
+    # Cliente que ya existe: se recupera por cédula
+    pagina.fill("#cli-identificacion", "1710034065")
+    pagina.click("#btn-buscar-cliente")
+    pagina.wait_for_selector("#btn-usar-cliente", timeout=5000)
+    revisar("encuentra al cliente registrado por su cédula",
+            "MARIA LOPEZ" in pagina.inner_text("#cli-encontrado"))
+    pagina.click("#btn-usar-cliente")
+    pagina.wait_for_timeout(400)
+    revisar("la caja pasa a modo factura con ese cliente",
+            "FACTURA" in pagina.inner_text("#pos-tipo-comp")
+            and "MARIA LOPEZ" in pagina.inner_text("#pos-cliente-nombre"))
+
+    # Cliente nuevo: se registra sin salir de la venta
+    pagina.click("#pos-cliente-btn")
+    pagina.wait_for_selector(".sel-comprobante", timeout=5000)
+    pagina.click('.opcion-comprobante[data-tipo="FACTURA"]')
+    pagina.fill("#cli-identificacion", "1710034073")
+    pagina.click("#btn-buscar-cliente")
+    pagina.wait_for_selector("#cli-nuevo:not(.hidden)", timeout=5000)
+    revisar("si no existe, ofrece registrarlo en el momento",
+            pagina.is_visible("#cli-nuevo"))
+    pagina.fill("#cli-nuevo [name=nombre]", "PEDRO RAMIREZ")
+    pagina.fill("#cli-nuevo [name=email]", "pedro@correo.ec")
+    pagina.click("#cli-nuevo button[type=submit]")
+    pagina.wait_for_timeout(600)
+    revisar("el cliente nuevo queda seleccionado para la factura",
+            "PEDRO RAMIREZ" in pagina.inner_text("#pos-cliente-nombre"))
+    registros = [e for e in pagina.evaluate("window.__ESCRITURAS")
+                 if e["tabla"] == "rpc:fn_registrar_cliente"]
+    revisar("el registro se hace contra la base, con validación de cédula",
+            len(registros) == 1)
+
     print("\n--- Administración y roles")
     pagina.evaluate("location.hash = '#admin'")
     pagina.wait_for_selector(".tabs", timeout=6000)
@@ -405,6 +473,16 @@ with sync_playwright() as p:
     revisar("el token se pide a la base, no se inventa en el navegador", len(rpc) == 1)
     pagina.click(".modal-cerrar")
     pagina.wait_for_timeout(200)
+
+    pagina.click('.tab[data-a="proveedores"]')
+    pagina.wait_for_selector("#form-prov", timeout=5000)
+    pagina.fill("#pv-ruc", "1790016919001")
+    pagina.fill("#pv-razon", "DISTRIBUIDORA DE PRUEBA")
+    pagina.click("#form-prov button[type=submit]")
+    pagina.wait_for_timeout(500)
+    provs = [e for e in pagina.evaluate("window.__ESCRITURAS")
+             if e["tabla"] == "rpc:fn_registrar_proveedor"]
+    revisar("el admin puede registrar proveedores sin tocar el código", len(provs) == 1)
 
     pagina.click('.tab[data-a="empresa"]')
     pagina.wait_for_selector("#form-empresa", timeout=5000)

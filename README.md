@@ -27,7 +27,12 @@ bitácora de auditoría. Construido sobre Supabase (PostgreSQL).
 | Roles (admin / bodeguero / vendedor) | Funcional y probado |
 | Tokens de autorización de un solo uso | Funcional y probado |
 | Administración de usuarios y empresa | Funcional y probado |
-| **Impresión de recibo y factura** | **No implementado** |
+| Identidad visual de Minimarket El Cultivo | Funcional y probado |
+| Cliente por cédula: buscar y registrar en caja | Funcional y probado |
+| Nota de venta / factura con formato ecuatoriano | Funcional y probado |
+| Impresión de comprobante (térmica 80 mm) | Funcional |
+| Proveedores administrables | Funcional y probado |
+| Perfil de usuario con permisos visibles | Funcional y probado |
 | **Exportación a Excel / PDF / CSV** | **No implementado** |
 | **Transferencias de ubicación desde la interfaz** | **Solo en base de datos** |
 | **Facturación electrónica SRI** | **No implementado** |
@@ -59,6 +64,11 @@ En el proyecto de Supabase → **SQL Editor** → pegar y ejecutar **en orden**:
 | 6 | `db/006_seed_ecuador.sql` | Catálogo de 97 productos de consumo en Quito (opcional) |
 | 7 | `db/007_realtime.sql` | Sincronización de stock en vivo entre cajas |
 | 8 | `db/008_roles_seguridad.sql` | **Corrige un bug que bloquea toda escritura de inventario.** Roles, tokens de autorización y datos de empresa |
+| 9 | `db/009_comprobantes_clientes.sql` | Nota de venta y factura, validación de cédula/RUC ecuatorianos, clientes y proveedores |
+
+Si aparece el error *"new row violates row-level security policy"* y no puedes
+aplicar la 008 completa, ejecuta **`db/FIX_RLS_URGENTE.sql`**: es el arreglo
+mínimo y aislado de ese bloqueo, se puede correr solo y verifica su resultado.
 
 Todos los scripts son re-ejecutables sin romper nada.
 

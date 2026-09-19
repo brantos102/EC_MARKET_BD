@@ -23,6 +23,7 @@ export async function renderAdmin(container) {
     <div class="tabs">
       <button class="tab active" data-a="usuarios">Usuarios y roles</button>
       <button class="tab" data-a="tokens">Tokens de autorización</button>
+      <button class="tab" data-a="proveedores">Proveedores</button>
       <button class="tab" data-a="empresa">Datos de la empresa</button>
     </div>
     <div id="admin-vista"></div>
@@ -40,6 +41,7 @@ export async function renderAdmin(container) {
   function pintar(cual) {
     if (cual === 'usuarios') vistaUsuarios(vista);
     else if (cual === 'tokens') vistaTokens(vista);
+    else if (cual === 'proveedores') vistaProveedores(vista);
     else vistaEmpresa(vista);
   }
 
@@ -337,4 +339,81 @@ function v(x) {
   const d = document.createElement('div');
   d.textContent = x ?? '';
   return d.innerHTML.replace(/"/g, '&quot;');
+}
+
+// ---------------------------------------------------------
+// Proveedores
+// ---------------------------------------------------------
+async function vistaProveedores(destino) {
+  destino.innerHTML = `
+    <div class="panel">
+      <h3>Registrar proveedor</h3>
+      <p class="nota">El RUC se valida antes de guardar: 13 dígitos terminados en 001 y,
+      si es de persona natural, con dígito verificador correcto.</p>
+      <form id="form-prov" class="inline-form">
+        <input type="text" id="pv-ruc" placeholder="RUC (13 dígitos)" required
+               pattern="[0-9]{13}" maxlength="13" inputmode="numeric" />
+        <input type="text" id="pv-razon" placeholder="Razón social" required />
+        <input type="text" id="pv-comercial" placeholder="Nombre comercial" />
+        <input type="text" id="pv-direccion" placeholder="Dirección" />
+        <input type="text" id="pv-telefono" placeholder="Teléfono" />
+        <input type="email" id="pv-email" placeholder="Correo" />
+        <button type="submit">Guardar proveedor</button>
+        <span id="pv-msg" class="form-msg"></span>
+      </form>
+    </div>
+    <div id="tabla-prov"></div>`;
+
+  destino.querySelector('#form-prov').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msg = destino.querySelector('#pv-msg');
+    msg.textContent = 'Guardando...';
+    msg.className = 'form-msg';
+
+    const { error } = await supabase.rpc('fn_registrar_proveedor', {
+      p_ruc: destino.querySelector('#pv-ruc').value.trim(),
+      p_razon_social: destino.querySelector('#pv-razon').value.trim(),
+      p_nombre_comercial: destino.querySelector('#pv-comercial').value.trim() || null,
+      p_direccion: destino.querySelector('#pv-direccion').value.trim() || null,
+      p_telefono: destino.querySelector('#pv-telefono').value.trim() || null,
+      p_email: destino.querySelector('#pv-email').value.trim() || null,
+    });
+
+    if (error) {
+      msg.textContent = error.message;
+      msg.className = 'form-msg error';
+      return;
+    }
+    msg.textContent = 'Proveedor guardado.';
+    msg.className = 'form-msg ok';
+    e.target.reset();
+    cargar();
+  });
+
+  async function cargar() {
+    const tabla = destino.querySelector('#tabla-prov');
+    const { data, error } = await supabase
+      .from('proveedores')
+      .select('ruc, razon_social, nombre_comercial, direccion, telefono, email, activo')
+      .order('razon_social');
+
+    if (error) {
+      tabla.innerHTML = traducirErrorSupabase(error, 'proveedores');
+      return;
+    }
+    renderTable(tabla, {
+      columns: [
+        { key: 'ruc', label: 'RUC' },
+        { key: 'razon_social', label: 'Razón social' },
+        { key: 'nombre_comercial', label: 'Nombre comercial' },
+        { key: 'telefono', label: 'Teléfono' },
+        { key: 'email', label: 'Correo' },
+        { key: 'estado', label: 'Estado' },
+      ],
+      rows: (data ?? []).map((p) => ({ ...p, estado: p.activo ? 'Activo' : 'Inactivo' })),
+      emptyMessage: 'No hay proveedores registrados.',
+    });
+  }
+
+  await cargar();
 }
