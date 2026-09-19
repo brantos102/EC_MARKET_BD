@@ -451,12 +451,60 @@ with sync_playwright() as p:
     pagina.evaluate("location.hash = '#admin'")
     pagina.wait_for_selector(".tabs", timeout=6000)
     pagina.wait_for_timeout(500)
-    revisar("el admin ve la matriz de permisos por rol",
-            "Con token" in pagina.inner_text("#admin-vista"))
     revisar("lista los usuarios con su rol",
-            "VENDEDOR" in pagina.inner_text("#tabla-usuarios"))
+            "Cajero" in pagina.inner_text("#tabla-usuarios")
+            or "VENDEDOR" in pagina.inner_text("#tabla-usuarios"))
     revisar("permite cambiar el rol desde un desplegable",
             pagina.is_visible(".sel-rol"))
+    revisar("permite asignar la sede desde un desplegable",
+            pagina.is_visible(".sel-sede"))
+    revisar("permite crear un usuario sin salir de la aplicación",
+            pagina.is_visible("#form-usuario"))
+    revisar("el alta pide rol y sede para el usuario nuevo",
+            pagina.is_visible("#us-rol") and pagina.is_visible("#us-sede"))
+
+    # Si la función de alta no está publicada, el administrador no puede
+    # quedarse sin camino: tiene que aparecer el procedimiento manual.
+    pagina.fill("#us-nombre", "Cajera de prueba")
+    pagina.fill("#us-email", "cajera.prueba@elcultivo.ec")
+    pagina.fill("#us-clave", "clave-temporal-123")
+    pagina.click("#form-usuario button[type=submit]")
+    pagina.wait_for_timeout(1200)
+    revisar("si falta publicar la función de alta, se muestra el camino manual",
+            "Add user" in pagina.inner_text("#admin-vista"))
+
+    # --- Matriz de permisos, ahora en su propia pestaña ---
+    pagina.click('.tab[data-a="roles"]')
+    pagina.wait_for_selector(".matriz-permisos", timeout=6000)
+    pagina.wait_for_timeout(300)
+    revisar("el admin ve la matriz de permisos por rol",
+            pagina.is_visible(".matriz-permisos"))
+    revisar("la matriz incluye el rol de supervisor",
+            "Supervisor" in pagina.inner_text("#admin-vista"))
+    revisar("cada rol trae su descripción en palabras",
+            pagina.eval_on_selector_all(".rol-tarjeta", "els => els.length") >= 4)
+    revisar("el administrador no se puede quitar permisos a sí mismo",
+            pagina.eval_on_selector_all(
+                '.chk-perm[data-rol="ADMIN"]',
+                "els => els.length > 0 && els.every(e => e.disabled)"))
+
+    # Marcar "editar" debe encender "ver" solo, para no dejar a alguien
+    # con permiso de guardar en una pantalla que no puede abrir.
+    pagina.eval_on_selector(
+        '.chk-perm[data-rol="VENDEDOR"][data-mod="compras"][data-campo="puede_ver"]',
+        "el => el.checked = false")
+    pagina.click('.chk-perm[data-rol="VENDEDOR"][data-mod="compras"][data-campo="puede_editar"]')
+    pagina.wait_for_timeout(400)
+    revisar("marcar Editar enciende Ver automáticamente",
+            pagina.eval_on_selector(
+                '.chk-perm[data-rol="VENDEDOR"][data-mod="compras"][data-campo="puede_ver"]',
+                "el => el.checked"))
+    revisar("el cambio de permiso se guarda en la base",
+            pagina.evaluate(
+                "window.__ESCRITURAS.some(e => e.tabla === 'permisos_rol')"))
+
+    pagina.click('.tab[data-a="usuarios"]')
+    pagina.wait_for_selector("#tabla-usuarios", timeout=6000)
     revisar("el menú muestra el rol de la sesión",
             "admin" in pagina.inner_text("#rol-actual").lower(),
             f"(dice '{pagina.inner_text('#rol-actual')}')")
@@ -487,7 +535,243 @@ with sync_playwright() as p:
     pagina.click('.tab[data-a="empresa"]')
     pagina.wait_for_selector("#form-empresa", timeout=5000)
     revisar("permite editar los datos fiscales para el recibo",
-            pagina.input_value("input[name=ruc]") == "1790016919001")
+            pagina.input_value("input[name=ruc]") == "1728605070001")
+    revisar("ofrece cargar el logotipo desde un archivo",
+            pagina.is_visible("#logo-archivo"))
+    revisar("muestra la vista previa del logotipo actual",
+            pagina.is_visible("#logo-previa"))
+    revisar("ofrece cargar el QR de cobro De Una",
+            pagina.is_visible("#deuna-archivo"))
+
+    # --- Sedes ---
+    pagina.click('.tab[data-a="sedes"]')
+    pagina.wait_for_selector("#form-sede", timeout=5000)
+    pagina.wait_for_timeout(400)
+    revisar("lista las sedes con su código de establecimiento",
+            "Sucursal Norte" in pagina.inner_text("#admin-vista"))
+    revisar("distingue la matriz de las sucursales",
+            "Matriz" in pagina.inner_text("#tabla-sedes"))
+
+    # --- Correo y plantillas ---
+    pagina.click('.tab[data-a="correo"]')
+    pagina.wait_for_selector("#form-correo", timeout=5000)
+    pagina.wait_for_timeout(400)
+    revisar("permite configurar el remitente corporativo",
+            pagina.is_visible("input[name=remitente_email]"))
+    revisar("advierte que la clave del proveedor no va en el navegador",
+            "secreto" in pagina.inner_text("#correo-vista").lower())
+
+    pagina.click('.sub-tab[data-s="plantillas"]')
+    pagina.wait_for_selector(".plantilla-fila", timeout=5000)
+    pagina.wait_for_timeout(300)
+    revisar("lista las plantillas de correo",
+            "Comprobante al cliente" in pagina.inner_text("#correo-vista"))
+
+    pagina.click('[data-editar="COMPROBANTE_CLIENTE"]')
+    pagina.wait_for_selector("#ep-cuerpo", timeout=5000)
+    pagina.wait_for_timeout(300)
+    revisar("abre el editor HTML de la plantilla",
+            pagina.is_visible("#ep-cuerpo"))
+    revisar("ofrece las etiquetas que se pueden insertar",
+            pagina.eval_on_selector_all(".ep-etiqueta", "els => els.length") > 5)
+
+    antes = pagina.input_value("#ep-cuerpo")
+    pagina.click('.ep-etiqueta[data-clave="venta.total"]')
+    pagina.wait_for_timeout(200)
+    revisar("al hacer clic inserta la etiqueta en el cuerpo",
+            "{{venta.total}}" in pagina.input_value("#ep-cuerpo")
+            and pagina.input_value("#ep-cuerpo") != antes)
+
+    pagina.click('.ep-modo[data-m="previa"]')
+    pagina.wait_for_timeout(400)
+    revisar("la vista previa reemplaza las etiquetas por datos de ejemplo",
+            pagina.eval_on_selector(
+                "#ep-previa",
+                "el => !el.srcdoc.includes('{{') && el.srcdoc.includes('MARÍA')"))
+
+    pagina.click(".modal-pie button:last-child")
+    pagina.wait_for_timeout(400)
+    revisar("guardar la plantilla escribe en la base",
+            pagina.evaluate(
+                "window.__ESCRITURAS.some(e => e.tabla === 'plantillas_correo')"))
+
+    pagina.click('.sub-tab[data-s="bandeja"]')
+    pagina.wait_for_selector("#tabla-cola", timeout=5000)
+    pagina.wait_for_timeout(300)
+    revisar("la bandeja de salida muestra los correos en espera",
+            "PENDIENTE" in pagina.inner_text("#correo-vista"))
+
+
+    # ---------------------------------------------------------
+    print("\n--- Menú desplegable con íconos")
+    pagina.evaluate("location.hash = '#dashboard'")
+    pagina.wait_for_timeout(400)
+    revisar("el menú se arma en grupos, no como lista plana",
+            pagina.eval_on_selector_all(".nav-grupo-bloque", "els => els.length") >= 2)
+    revisar("cada enlace del menú lleva su ícono",
+            pagina.eval_on_selector_all(".nav-modulos .nav-link .nav-icono",
+                                        "els => els.length") >= 3)
+    revisar("cada grupo dice cuántos módulos contiene",
+            pagina.eval_on_selector_all(".nav-grupo-cuenta", "els => els.length") >= 2)
+
+    grupo = ".nav-grupo-bloque:first-child"
+    abierto_antes = pagina.eval_on_selector(grupo, "el => el.classList.contains('abierto')")
+    pagina.click(f"{grupo} .nav-grupo-btn")
+    pagina.wait_for_timeout(350)
+    revisar("al pulsar el grupo se pliega o despliega",
+            pagina.eval_on_selector(grupo, "el => el.classList.contains('abierto')")
+            != abierto_antes)
+    revisar("el estado del grupo queda anunciado para lectores de pantalla",
+            pagina.eval_on_selector(
+                f"{grupo} .nav-grupo-btn",
+                "el => el.getAttribute('aria-expanded') === String(el.closest('.nav-grupo-bloque').classList.contains('abierto'))"))
+
+    # Un módulo activo no puede quedar escondido dentro de un grupo plegado
+    pagina.click(f"{grupo} .nav-grupo-btn")
+    pagina.wait_for_timeout(250)
+    revisar("la sede de la sesión aparece en la cabecera del menú",
+            "Matriz" in pagina.text_content("#sede-actual"))
+
+    # ---------------------------------------------------------
+    print("\n--- Cantidades por unidad, no por decimales")
+    # Las secciones anteriores ya vendieron parte del stock simulado; se
+    # devuelve a un valor conocido para que esta prueba mida lo que quiere
+    # medir y no el saldo que dejó la anterior.
+    pagina.evaluate("window.__FIJAR_STOCK('prod-ruffles', 12)")
+    pagina.evaluate("location.hash = '#dashboard'")
+    pagina.wait_for_timeout(250)
+    pagina.evaluate("location.hash = '#pos'")
+    pagina.wait_for_selector("#pos-scan", timeout=8000)
+    pagina.click("#pos-limpiar")
+    pagina.wait_for_timeout(300)
+
+    # Papas Ruffles: se venden por unidad
+    pagina.fill("#pos-scan", "7861000100021")
+    pagina.press("#pos-scan", "Enter")
+    pagina.wait_for_timeout(400)
+    revisar("un producto por unidad entra con cantidad 1",
+            pagina.input_value(".cant-input") == "1",
+            f"(dice '{pagina.input_value('.cant-input')}')")
+    revisar("la celda de cantidad es un control con + y −",
+            pagina.is_visible(".cant-stepper .cant-btn[data-mas]"))
+    revisar("un producto por unidad no ofrece teclado de peso",
+            pagina.eval_on_selector_all(".cant-peso", "els => els.length") == 0)
+    revisar("el paso del campo es 1, no 0.01",
+            pagina.eval_on_selector(".cant-input", "el => el.step") == "1")
+    revisar("la línea dice en qué unidad se despacha",
+            "unidad" in pagina.inner_text(".cant-unidad").lower())
+
+    pagina.click(".cant-btn[data-mas]")
+    pagina.wait_for_timeout(300)
+    revisar("el botón + suma una unidad entera",
+            pagina.input_value(".cant-input") == "2",
+            f"(dice '{pagina.input_value('.cant-input')}')")
+
+    # Escribir un decimal a mano se corrige y se avisa
+    pagina.fill(".cant-input", "1.03")
+    pagina.press(".cant-input", "Tab")
+    pagina.wait_for_timeout(400)
+    revisar("escribir 1,03 en un producto por unidad se corrige a 1",
+            pagina.input_value(".cant-input") == "1",
+            f"(dice '{pagina.input_value('.cant-input')}')")
+    revisar("y se le explica al cajero por qué",
+            "entera" in pagina.inner_text("#pos-scan-msg").lower(),
+            f"(dice '{pagina.inner_text('#pos-scan-msg')}')")
+
+    pagina.click(".cant-btn[data-menos]")
+    pagina.wait_for_timeout(300)
+    revisar("el botón − quita una unidad",
+            pagina.eval_on_selector_all(".cant-input", "els => els.length") == 0
+            or pagina.input_value(".cant-input") == "1")
+
+    # ---------------------------------------------------------
+    print("\n--- Teclado de peso para lo que se pesa")
+    pagina.click("#pos-limpiar")
+    pagina.wait_for_timeout(300)
+    pagina.fill("#pos-scan", "7861000100014")      # limón, por libra
+    pagina.press("#pos-scan", "Enter")
+    pagina.wait_for_timeout(400)
+    revisar("un producto a peso entra con 1 al escanearlo",
+            pagina.input_value(".cant-input") == "1",
+            f"(dice '{pagina.input_value('.cant-input')}')")
+    revisar("un producto a peso sí ofrece el teclado de balanza",
+            pagina.is_visible(".cant-peso"))
+    revisar("su paso es medio, no una centésima",
+            pagina.eval_on_selector(".cant-input", "el => el.step") == "0.5")
+
+    pagina.click(".cant-peso")
+    pagina.wait_for_selector("#peso-valor", timeout=5000)
+    pagina.wait_for_timeout(300)
+    revisar("el teclado de peso muestra el importe mientras se digita",
+            pagina.is_visible("#peso-importe"))
+
+    pagina.fill("#peso-valor", "")
+    for tecla in ["1", ".", "0", "3"]:
+        pagina.click(f'.peso-tecla[data-t="{tecla}"]')
+    pagina.wait_for_timeout(250)
+    revisar("las teclas arman el peso exacto de la balanza",
+            pagina.input_value("#peso-valor") == "1.03",
+            f"(dice '{pagina.input_value('#peso-valor')}')")
+    revisar("el importe se recalcula con el peso digitado",
+            pagina.inner_text("#peso-importe") == "$0.82",
+            f"(dice '{pagina.inner_text('#peso-importe')}')")
+
+    pagina.click(".modal-pie button:last-child")
+    pagina.wait_for_timeout(400)
+    revisar("el peso decimal sí se conserva en un producto que se pesa",
+            pagina.input_value(".cant-input") == "1.03",
+            f"(dice '{pagina.input_value('.cant-input')}')")
+
+    # ---------------------------------------------------------
+    print("\n--- Cobro con De Una")
+    pagina.click("#pos-cobrar")
+    pagina.wait_for_selector(".forma-pago", timeout=5000)
+    pagina.click('.forma-pago[data-forma="TRANSFERENCIA_DEUNA"]')
+    pagina.wait_for_timeout(350)
+    revisar("al elegir De Una se abre el panel del QR",
+            pagina.is_visible("#pago-deuna"))
+    revisar("si no hay QR cargado se dice qué hacer",
+            "Administración" in pagina.inner_text("#deuna-nota"))
+    revisar("igual se puede cobrar anotando el código de la transacción",
+            pagina.is_visible("#pago-codigo-input"))
+    pagina.click(".modal-cerrar")
+    pagina.wait_for_timeout(300)
+
+    # ---------------------------------------------------------
+    print("\n--- Compras a proveedores")
+    pagina.evaluate("location.hash = '#compras'")
+    pagina.wait_for_selector("#tabla-rep", timeout=8000)
+    pagina.wait_for_timeout(500)
+    revisar("lista lo que está bajo el mínimo",
+            "Limón sutil" in pagina.inner_text("#tabla-rep"))
+    revisar("marca como agotado lo que quedó en cero",
+            "AGOTADO" in pagina.inner_text("#tabla-rep"))
+    revisar("muestra la rotación que justifica la cantidad a pedir",
+            "/día" in pagina.inner_text("#tabla-rep"))
+    revisar("cuenta cuántos productos no tienen proveedor asignado",
+            "sin proveedor" in pagina.inner_text("#compras-vista"))
+
+    pagina.click("#btn-agrupar")
+    pagina.wait_for_selector(".chk-prov", timeout=5000)
+    pagina.wait_for_timeout(300)
+    revisar("agrupa el pedido por proveedor",
+            "DISTRIBUIDORA ANDINA" in pagina.inner_text(".modal-cuerpo"))
+    revisar("avisa de los productos que quedan fuera por no tener proveedor",
+            "Papas Ruffles" in pagina.inner_text(".modal-cuerpo"))
+
+    pagina.click(".modal-pie button:last-child")
+    pagina.wait_for_timeout(600)
+    escrituras = pagina.evaluate("window.__ESCRITURAS")
+    revisar("crea la orden de compra contra la base",
+            any(e["tabla"] == "rpc:fn_crear_orden_compra" for e in escrituras))
+    revisar("y deja el correo al proveedor en la bandeja de salida",
+            any(e["tabla"] == "rpc:fn_enviar_orden_compra" for e in escrituras))
+
+    pagina.click('.tab[data-a="ordenes"]')
+    pagina.wait_for_selector("#tabla-oc", timeout=5000)
+    pagina.wait_for_timeout(300)
+    revisar("las órdenes generadas quedan listadas",
+            "OC-2026-00001" in pagina.inner_text("#tabla-oc"))
 
     print("\n--- Otras pantallas cargan sin romperse")
     for ruta, selector in [

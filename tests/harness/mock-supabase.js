@@ -40,12 +40,83 @@
         created_at: '2026-09-10T10:00:00Z' },
     ],
     tokens_autorizacion: [],
+    sedes: [
+      { id: 'sede-1', codigo: '001', nombre: 'Matriz', direccion: 'Quito',
+        telefono: '02-2000000', punto_emision: '001', es_matriz: true, activa: true },
+      { id: 'sede-2', codigo: '002', nombre: 'Sucursal Norte', direccion: 'Carcelén',
+        telefono: null, punto_emision: '001', es_matriz: false, activa: true },
+    ],
+    roles_catalogo: [
+      { codigo: 'ADMIN', nombre: 'Administrador', descripcion: 'Configura todo el sistema.', nivel: 1, activo: true },
+      { codigo: 'SUPERVISOR', nombre: 'Supervisor de tienda', descripcion: 'Todo lo operativo, sin administración.', nivel: 2, activo: true },
+      { codigo: 'BODEGUERO', nombre: 'Bodeguero', descripcion: 'Recibe y ubica mercadería.', nivel: 3, activo: true },
+      { codigo: 'VENDEDOR', nombre: 'Cajero / Vendedor', descripcion: 'Atiende la caja.', nivel: 4, activo: true },
+    ],
+    modulos_sistema: [
+      { codigo: 'dashboard', nombre: 'Dashboard', grupo: 'Operación', icono: 'tablero', orden: 10, activo: true },
+      { codigo: 'pos', nombre: 'Punto de venta', grupo: 'Operación', icono: 'carrito', orden: 20, activo: true },
+      { codigo: 'compras', nombre: 'Compras a proveedores', grupo: 'Catálogo', icono: 'camion', orden: 105, activo: true },
+      { codigo: 'admin', nombre: 'Administración', grupo: 'Control', icono: 'engranaje', orden: 130, activo: true },
+    ],
+    permisos_rol: [
+      { rol: 'ADMIN', modulo: 'dashboard', puede_ver: true, puede_editar: true, requiere_token: false },
+      { rol: 'ADMIN', modulo: 'pos', puede_ver: true, puede_editar: true, requiere_token: false },
+      { rol: 'ADMIN', modulo: 'compras', puede_ver: true, puede_editar: true, requiere_token: false },
+      { rol: 'ADMIN', modulo: 'admin', puede_ver: true, puede_editar: true, requiere_token: false },
+      { rol: 'VENDEDOR', modulo: 'dashboard', puede_ver: true, puede_editar: false, requiere_token: false },
+      { rol: 'VENDEDOR', modulo: 'pos', puede_ver: true, puede_editar: true, requiere_token: false },
+      { rol: 'VENDEDOR', modulo: 'compras', puede_ver: false, puede_editar: false, requiere_token: false },
+      { rol: 'VENDEDOR', modulo: 'admin', puede_ver: false, puede_editar: false, requiere_token: false },
+    ],
+    correo_config: [
+      { id: true, proveedor: 'RESEND', remitente_email: null,
+        remitente_nombre: 'Minimarket El Cultivo', responder_a: null,
+        copia_oculta: null, firma_html: null, activo: false },
+    ],
+    plantillas_correo: [
+      { codigo: 'COMPROBANTE_CLIENTE', nombre: 'Comprobante al cliente',
+        descripcion: 'Se envía al cliente cuando deja su correo.',
+        asunto: '{{empresa.nombre_comercial}} — comprobante {{venta.numero_comprobante}}',
+        cuerpo_html: '<p>Estimado/a <b>{{cliente.nombre}}</b>: su total fue {{venta.total}}.</p>',
+        activa: true, es_sistema: true },
+      { codigo: 'ORDEN_COMPRA_PROVEEDOR', nombre: 'Orden de compra al proveedor',
+        descripcion: 'Solicitud de abastecimiento.',
+        asunto: 'Orden de compra {{orden.numero}}',
+        cuerpo_html: '<p>Señores {{proveedor.razon_social}}: {{orden.detalle_html}}</p>',
+        activa: true, es_sistema: true },
+    ],
+    cola_correo: [
+      { id: 'mail-1', plantilla: 'COMPROBANTE_CLIENTE', destinatario: 'maria@correo.ec',
+        asunto: 'Minimarket El Cultivo — comprobante 001-001-000000147',
+        estado: 'PENDIENTE', intentos: 0, ultimo_error: null,
+        created_at: '2026-09-19T15:00:00Z', enviado_at: null },
+    ],
+    ordenes_compra: [
+      { id: 'oc-1', numero: 'OC-2026-00001', fecha: '2026-09-18', fecha_requerida: '2026-09-21',
+        estado: 'ENVIADA', total_estimado: 128.5, observaciones: null,
+        created_at: '2026-09-18T09:00:00Z',
+        proveedores: { razon_social: 'DISTRIBUIDORA ANDINA S.A.', email: 'ventas@andina.ec' } },
+    ],
+    v_sugerencia_reposicion: [
+      { producto_id: 'prod-limon', codigo: 'FRU-013', nombre: 'Limón sutil',
+        stock_minimo: 25, bodega_id: BODEGA, sede_id: 'sede-1', stock: 4,
+        vendido_30d: 60, promedio_diario: 2, cantidad_sugerida: 49.5,
+        proveedor_id: 'prov-1', proveedor: 'DISTRIBUIDORA ANDINA S.A.',
+        proveedor_email: 'ventas@andina.ec', ultimo_costo: 0.45, urgencia: 'CRITICO' },
+      { producto_id: 'prod-ruffles', codigo: 'SNK-001', nombre: 'Papas Ruffles 140g',
+        stock_minimo: 10, bodega_id: BODEGA, sede_id: 'sede-1', stock: 0,
+        vendido_30d: 30, promedio_diario: 1, cantidad_sugerida: 24,
+        proveedor_id: null, proveedor: null, proveedor_email: null,
+        ultimo_costo: null, urgencia: 'AGOTADO' },
+    ],
     empresa: [
-      { id: true, razon_social: 'MARKET DE PRUEBA', nombre_comercial: 'Market',
-        ruc: '1790016919001', direccion_matriz: 'Quito', telefono: '02-2000000',
+      { id: true, razon_social: 'MINIMARKET EL CULTIVO', nombre_comercial: 'Minimarket El Cultivo',
+        ruc: '1728605070001', direccion_matriz: 'Quito', telefono: '02-2000000',
         email: 'market@prueba.ec', establecimiento: '001', punto_emision: '001',
         ambiente: 'PRUEBAS', tipo_negocio: 'MARKET', obligado_contabilidad: false,
-        pie_recibo: '¡Gracias por su compra!', logo_url: null },
+        pie_recibo: 'Frescura y calidad en cada compra', color_primario: '#17803A',
+        logo_url: null, deuna_qr_url: null, deuna_titular: null,
+        deuna_telefono: null, deuna_activo: false },
     ],
     v_stock_actual: [
       {
@@ -223,7 +294,9 @@
         categoria_id: 'cat-fru',
         categoria: 'Frutas',
         unidad: 'LB',
+        unidad_nombre: 'Libra',
         permite_fraccion: true,
+        paso_venta: 0.5,
         precio_venta_menor: 0.8,
         precio_venta_mayor: 0.6,
         cantidad_minima_mayor: 25,
@@ -242,7 +315,9 @@
         categoria_id: 'cat-snk',
         categoria: 'Snacks',
         unidad: 'UND',
+        unidad_nombre: 'Unidad',
         permite_fraccion: false,
+        paso_venta: 1,
         precio_venta_menor: 2.35,
         precio_venta_mayor: 2.0,
         cantidad_minima_mayor: 24,
@@ -278,6 +353,13 @@
         window.__ESCRITURAS.push({ tabla, operacion: 'insert', payload });
         return api;
       },
+      upsert(payload) {
+        estado.modo = 'upsert';
+        estado.payload = payload;
+        window.__ESCRITURAS.push({ tabla, operacion: 'upsert', payload });
+        return api;
+      },
+
       update(payload) {
         estado.modo = 'update';
         estado.payload = payload;
@@ -356,6 +438,37 @@
       return { data: [{ usuario_id: 'u-1', nombre: 'prueba@itsanet.com', rol: 'ADMIN',
                         bodega_id: BODEGA, tipo_negocio: 'MARKET' }], error: null };
     }
+    if (nombre === 'fn_mi_perfil_completo') {
+      return { data: [{ usuario_id: 'u-1', nombre: 'prueba@itsanet.com', rol: 'ADMIN',
+                        rol_nombre: 'Administrador',
+                        rol_descripcion: 'Configura todo el sistema.',
+                        sede_id: 'sede-1', sede_nombre: 'Matriz', sede_codigo: '001',
+                        activo: true }], error: null };
+    }
+    if (nombre === 'fn_mis_modulos') {
+      const rol = 'ADMIN';
+      const data = DATOS.modulos_sistema.map((m) => {
+        const p = DATOS.permisos_rol.find((x) => x.rol === rol && x.modulo === m.codigo) ?? {};
+        return { ...m, puede_ver: !!p.puede_ver, puede_editar: !!p.puede_editar,
+                 requiere_token: !!p.requiere_token, descripcion: m.descripcion ?? m.nombre };
+      });
+      return { data, error: null };
+    }
+    if (nombre === 'fn_crear_orden_compra') {
+      window.__ESCRITURAS.push({ tabla: 'rpc:fn_crear_orden_compra', operacion: 'rpc', payload: args });
+      return { data: 'oc-nueva', error: null };
+    }
+    if (nombre === 'fn_enviar_orden_compra') {
+      window.__ESCRITURAS.push({ tabla: 'rpc:fn_enviar_orden_compra', operacion: 'rpc', payload: args });
+      return { data: 'mail-nuevo', error: null };
+    }
+    if (nombre === 'fn_encolar_correo') {
+      window.__ESCRITURAS.push({ tabla: 'rpc:fn_encolar_correo', operacion: 'rpc', payload: args });
+      return { data: 'mail-nuevo', error: null };
+    }
+    if (nombre === 'fn_datos_correo_venta') {
+      return { data: { venta: { total: '$12.50' }, cliente: { nombre: 'MARIA LOPEZ' } }, error: null };
+    }
     if (nombre === 'fn_buscar_cliente') {
       const id = (args?.p_identificacion ?? '').trim();
       const cli = DATOS.clientes.find((c) => c.identificacion === id);
@@ -380,6 +493,18 @@
     }
     return { data: null, error: { message: `rpc no simulada: ${nombre}` } };
   }
+
+  // Gancho solo para las pruebas: permite devolver el stock a un valor
+  // conocido entre secciones, para que una prueba no dependa de cuánto
+  // vendió la anterior.
+  window.__FIJAR_STOCK = function (productoId, valor) {
+    for (const fila of DATOS.v_pos_productos) {
+      if (fila.producto_id === productoId) fila.stock = valor;
+    }
+    for (const fila of DATOS.v_stock_actual) {
+      if (fila.producto_id === productoId) fila.stock = valor;
+    }
+  };
 
   window.supabase = {
     createClient() {

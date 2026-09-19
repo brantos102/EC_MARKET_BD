@@ -7,6 +7,8 @@ import { autocompletar } from './lib/autocomplete.js';
 import { fijarCatalogo, actualizarPanelVenta } from './lib/panel-venta.js';
 import { abrirSelectorCliente } from './lib/cliente-venta.js';
 import { imprimirComprobante } from './lib/comprobante.js';
+import { paso, formatear, fracciona, sumarPaso, decimales } from './lib/cantidad.js';
+import { empresaActual } from './lib/marca.js';
 import {
   configurar, fijarTipoVenta, agregar, cambiarCantidad, vaciar,
   lineasCalculadas, totales, obtenerEstado, actualizarStock, suscribir, reiniciarCliente,
@@ -189,8 +191,22 @@ export async function renderPOS(container) {
             ${l.calculo.promocionAplicada ? `<span class="badge-promo">${escapar(l.calculo.promocionAplicada.nombre)}</span>` : ''}
           </div>
         </td>
-        <td><input type="number" class="cant-input" data-id="${l.producto.producto_id}"
-                   value="${l.cantidad}" min="0" step="${l.producto.permite_fraccion ? '0.01' : '1'}" /></td>
+        <td>
+          <div class="cant-stepper ${fracciona(l.producto) ? 'es-peso' : ''}">
+            <button type="button" class="cant-btn" data-menos="${l.producto.producto_id}"
+                    title="Quitar ${formatear(paso(l.producto), l.producto)} ${escapar(l.producto.unidad ?? '')}">−</button>
+            <input type="number" class="cant-input" data-id="${l.producto.producto_id}"
+                   value="${formatear(l.cantidad, l.producto)}"
+                   min="0" step="${paso(l.producto)}"
+                   inputmode="${fracciona(l.producto) ? 'decimal' : 'numeric'}" />
+            <button type="button" class="cant-btn" data-mas="${l.producto.producto_id}"
+                    title="Agregar ${formatear(paso(l.producto), l.producto)} ${escapar(l.producto.unidad ?? '')}">+</button>
+            ${fracciona(l.producto)
+              ? `<button type="button" class="cant-peso" data-peso="${l.producto.producto_id}"
+                         title="Digitar el peso exacto que marca la balanza">⚖</button>` : ''}
+          </div>
+          <div class="cant-unidad">${escapar(l.producto.unidad_nombre ?? l.producto.unidad ?? '')}</div>
+        </td>
         <td>$${l.calculo.precioBase.toFixed(2)}</td>
         <td class="${l.calculo.descuento > 0 ? 'texto-descuento' : ''}">
           ${l.calculo.descuento > 0 ? '-$' + l.calculo.descuento.toFixed(2) : '—'}</td>
@@ -199,16 +215,45 @@ export async function renderPOS(container) {
         <td><button class="btn-quitar" data-id="${l.producto.producto_id}" title="Quitar">✕</button></td>
       </tr>`).join('');
 
+    function aplicar(resultado) {
+      if (!resultado.ok && resultado.mensaje) {
+        scanMsg.textContent = resultado.mensaje;
+        scanMsg.className = 'form-msg error';
+      } else {
+        scanMsg.textContent = '';
+      }
+      pintar();
+    }
+
+    function lineaDe(id) {
+      return lineasCalculadas().find((l) => l.producto.producto_id === id);
+    }
+
     tbody.querySelectorAll('.cant-input').forEach((input) => {
-      input.addEventListener('change', () => {
-        const r = cambiarCantidad(input.dataset.id, Number(input.value));
-        if (!r.ok && r.mensaje) {
-          scanMsg.textContent = r.mensaje;
-          scanMsg.className = 'form-msg error';
-          pintar();
-        }
+      input.addEventListener('change', () => aplicar(cambiarCantidad(input.dataset.id, input.value)));
+    });
+
+    tbody.querySelectorAll('[data-mas]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const l = lineaDe(btn.dataset.mas);
+        if (l) aplicar(cambiarCantidad(l.producto.producto_id, sumarPaso(l.cantidad, l.producto, +1)));
       });
     });
+
+    tbody.querySelectorAll('[data-menos]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const l = lineaDe(btn.dataset.menos);
+        if (l) aplicar(cambiarCantidad(l.producto.producto_id, sumarPaso(l.cantidad, l.producto, -1)));
+      });
+    });
+
+    tbody.querySelectorAll('[data-peso]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const l = lineaDe(btn.dataset.peso);
+        if (l) abrirTecladoPeso(l, (valor) => aplicar(cambiarCantidad(l.producto.producto_id, valor)));
+      });
+    });
+
     tbody.querySelectorAll('.btn-quitar').forEach((btn) => {
       btn.addEventListener('click', () => cambiarCantidad(btn.dataset.id, 0));
     });
@@ -325,9 +370,55 @@ export async function renderPOS(container) {
               alert(`No se pudo generar el comprobante: ${err.message}`);
             }
           } },
+        { texto: 'Enviar por correo', clase: 'btn-secundario', accion: () => enviarPorCorreo(venta) },
         { texto: 'Nueva venta', clase: 'btn-primary', accion: cerrarModal },
       ],
     });
+  }
+
+  /**
+   * Deja el comprobante listo en la bandeja de salida.
+   *
+   * No se envía desde aquí: el navegador no debe tener la clave del
+   * proveedor de correo. La base arma el mensaje con la plantilla y una
+   * función de borde lo despacha (ver PUBLICACION.md).
+   */
+  async function enviarPorCorreo(venta) {
+    const estado = obtenerEstado();
+    let destino = estado.clienteEmail ?? '';
+
+    if (!destino) {
+      const { data } = await supabase.rpc('fn_buscar_cliente',
+        { p_identificacion: estado.clienteIdentificacion ?? '' });
+      destino = data?.[0]?.email ?? '';
+    }
+
+    destino = window.prompt('Correo del cliente:', destino || '');
+    if (!destino) return;
+
+    const { data: datos, error: errDatos } =
+      await supabase.rpc('fn_datos_correo_venta', { p_venta_id: venta.id });
+    if (errDatos) {
+      alert(`No se pudo preparar el correo: ${errDatos.message}`);
+      return;
+    }
+
+    const { error } = await supabase.rpc('fn_encolar_correo', {
+      p_plantilla: 'COMPROBANTE_CLIENTE',
+      p_destinatario: destino.trim(),
+      p_datos: datos,
+      p_destinatario_nombre: estado.clienteNombre ?? null,
+      p_referencia_tipo: 'VENTA',
+      p_referencia_id: venta.id,
+    });
+
+    if (error) {
+      alert(`No se pudo encolar el correo: ${error.message}`);
+      return;
+    }
+
+    posMsg.textContent = `Comprobante en cola para ${destino.trim()}.`;
+    posMsg.className = 'form-msg ok';
   }
 
   // ----- Tiempo real entre cajas -----
@@ -380,6 +471,92 @@ export async function renderPOS(container) {
   scan.focus();
 }
 
+// =========================================================
+// Teclado de peso
+//
+// Para un producto que se pesa, el cajero necesita escribir el número
+// exacto que marca la balanza (1,03 lb) sin pelear con una flecha que
+// avanza de centésima en centésima. Este teclado es la única puerta por
+// la que entra un decimal a la venta, y solo se abre en productos que
+// se venden por peso o volumen.
+// =========================================================
+function abrirTecladoPeso(linea, alConfirmar) {
+  const p = linea.producto;
+  const unidad = p.unidad_nombre ?? p.unidad ?? '';
+  const precio = Number(linea.calculo?.precioBase ?? p.precio_venta_menor ?? 0);
+
+  abrirModal({
+    titulo: `Peso de ${p.nombre}`,
+    contenido: `
+      <div class="peso-caja">
+        <div class="peso-lectura">
+          <input type="text" id="peso-valor" class="peso-input" inputmode="decimal"
+                 value="${formatear(linea.cantidad, p)}" autocomplete="off" />
+          <span class="peso-unidad">${escapar(unidad)}</span>
+        </div>
+        <div class="peso-importe">
+          $${precio.toFixed(2)} por ${escapar(unidad)} · importe
+          <b id="peso-importe">$${(precio * linea.cantidad).toFixed(2)}</b>
+        </div>
+        <div class="peso-teclado">
+          ${['7','8','9','4','5','6','1','2','3','.','0','←']
+            .map((t) => `<button type="button" class="peso-tecla" data-t="${t}">${t}</button>`).join('')}
+        </div>
+        <div class="peso-rapidos">
+          ${[0.25, 0.5, 1, 2, 5].map((v) =>
+            `<button type="button" class="peso-rapido" data-v="${v}">${v} ${escapar(unidad)}</button>`).join('')}
+        </div>
+        <p class="nota">Disponible: ${formatear(p.stock, p)} ${escapar(unidad)}</p>
+        <div id="peso-msg" class="form-msg"></div>
+      </div>`,
+    botones: [
+      { texto: 'Cancelar', clase: 'btn-secundario', accion: cerrarModal },
+      { texto: 'Aplicar peso', clase: 'btn-primary', accion: confirmar },
+    ],
+    alAbrir: (modal) => {
+      const campo = modal.querySelector('#peso-valor');
+      const importe = modal.querySelector('#peso-importe');
+
+      function repintar() {
+        const n = Number(campo.value.replace(',', '.'));
+        importe.textContent = Number.isFinite(n) ? `$${(precio * n).toFixed(2)}` : '—';
+      }
+
+      modal.querySelectorAll('.peso-tecla').forEach((b) => {
+        b.addEventListener('click', () => {
+          const t = b.dataset.t;
+          if (t === '←') campo.value = campo.value.slice(0, -1);
+          else if (t === '.') { if (!campo.value.includes('.')) campo.value += campo.value ? '.' : '0.'; }
+          else campo.value = campo.value === '0' ? t : campo.value + t;
+          repintar();
+        });
+      });
+
+      modal.querySelectorAll('.peso-rapido').forEach((b) => {
+        b.addEventListener('click', () => { campo.value = b.dataset.v; repintar(); });
+      });
+
+      campo.addEventListener('input', repintar);
+      campo.addEventListener('keydown', (e) => { if (e.key === 'Enter') confirmar(); });
+      campo.focus();
+      campo.select();
+    },
+  });
+
+  function confirmar() {
+    const modal = document.querySelector('.modal');
+    const n = Number(modal.querySelector('#peso-valor').value.replace(',', '.'));
+    const msg = modal.querySelector('#peso-msg');
+    if (!Number.isFinite(n) || n <= 0) {
+      msg.textContent = 'Escriba un peso mayor que cero';
+      msg.className = 'form-msg error';
+      return;
+    }
+    cerrarModal();
+    alConfirmar(n);
+  }
+}
+
 function escapar(t) {
   const d = document.createElement('div');
   d.textContent = t ?? '';
@@ -389,6 +566,40 @@ function escapar(t) {
 // =========================================================
 // Modal de pago
 // =========================================================
+/**
+ * QR de cobro De Una!
+ *
+ * El comercio descarga su QR de la banca en línea del Banco Pichincha y
+ * lo carga en Administración → Empresa. La caja lo muestra grande para
+ * que el cliente lo escanee con la app; el cajero anota después el
+ * código del comprobante que le queda en pantalla al cliente.
+ *
+ * Es un QR estático: no lleva el monto, lo digita el cliente. Generar un
+ * QR con el monto ya incluido exige la API de Deuna, que requiere un
+ * contrato comercial con el banco (ver PUBLICACION.md). Mientras tanto
+ * el cajero canta el valor, que es exactamente como se cobra hoy en
+ * mostrador.
+ */
+function pintarDeuna(modal) {
+  const caja = modal.querySelector('#deuna-qr');
+  const nota = modal.querySelector('#deuna-nota');
+  if (!caja || caja.dataset.listo) return;
+
+  const e = empresaActual();
+  if (e?.deuna_qr_url) {
+    caja.innerHTML = `<img src="${e.deuna_qr_url}" alt="QR de cobro De Una" />`;
+    nota.textContent = e.deuna_titular
+      ? `Cuenta de ${e.deuna_titular}. El cliente digita el monto en la app.`
+      : 'El cliente escanea y digita el monto en la app De Una.';
+  } else {
+    caja.innerHTML = '<div class="deuna-falta">Sin QR cargado</div>';
+    nota.textContent =
+      'Cargue el QR de cobro en Administración → Empresa → De Una. ' +
+      'Mientras tanto puede cobrar igual y anotar el código de la transacción.';
+  }
+  caja.dataset.listo = '1';
+}
+
 function abrirModalPago(total, onConfirmar) {
   abrirModal({
     titulo: `Cobrar $${total.toFixed(2)}`,
@@ -411,6 +622,16 @@ function abrirModalPago(total, onConfirmar) {
           <button data-monto="10">$10</button>
           <button data-monto="20">$20</button>
           <button data-monto="50">$50</button>
+        </div>
+      </div>
+
+      <div id="pago-deuna" class="pago-campos hidden">
+        <div class="deuna-caja">
+          <div class="deuna-qr" id="deuna-qr"></div>
+          <div class="deuna-datos">
+            <p class="deuna-monto">Cobrar <b>$${total.toFixed(2)}</b></p>
+            <p class="nota" id="deuna-nota"></p>
+          </div>
         </div>
       </div>
 
@@ -438,10 +659,13 @@ function abrirModalPago(total, onConfirmar) {
           btn.classList.add('activa');
           forma = btn.dataset.forma;
           const esEfectivo = forma === 'EFECTIVO';
+          const esDeuna = forma === 'TRANSFERENCIA_DEUNA';
           modal.querySelector('#pago-efectivo').classList.toggle('hidden', !esEfectivo);
           modal.querySelector('#pago-codigo').classList.toggle('hidden', esEfectivo);
+          modal.querySelector('#pago-deuna').classList.toggle('hidden', !esDeuna);
+          if (esDeuna) pintarDeuna(modal);
           modal.querySelector('#pago-codigo-label').textContent =
-            forma === 'TRANSFERENCIA_DEUNA' ? 'Código de comprobante De Una'
+            esDeuna ? 'Código de comprobante De Una'
             : forma.startsWith('TARJETA') ? 'N.º de voucher'
             : 'N.º de transferencia';
         });

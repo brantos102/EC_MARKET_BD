@@ -84,7 +84,8 @@ async function renderNuevoIngreso(root) {
       <form id="form-detalle" class="inline-form">
         <input type="text" id="det-scan" placeholder="Escanear EAN-13 o escribir código" autocomplete="off" />
         <select id="det-producto" required><option value="">Producto...</option></select>
-        <input type="number" id="det-cantidad" placeholder="Cantidad" min="0.0001" step="0.0001" required />
+        <input type="number" id="det-cantidad" placeholder="Cantidad" min="0.0001" step="1" required />
+        <span id="det-unidad" class="pista-unidad"></span>
         <input type="number" id="det-costo" placeholder="Costo unitario" min="0.0001" step="0.0001" required />
         <input type="text" id="det-lote" placeholder="N.º de lote (opcional)" />
         <input type="date" id="det-caducidad" title="Fecha de caducidad" />
@@ -106,7 +107,9 @@ async function renderNuevoIngreso(root) {
   const [{ data: proveedores }, { data: bodegas }, { data: productos }] = await Promise.all([
     supabase.from('proveedores').select('id, ruc, nombre_comercial, razon_social').eq('activo', true).order('razon_social'),
     supabase.from('bodegas').select('id, nombre').eq('activa', true).order('nombre'),
-    supabase.from('productos').select('id, codigo, nombre, ean13, maneja_lote').eq('activo', true).order('nombre'),
+    supabase.from('productos')
+      .select('id, codigo, nombre, ean13, maneja_lote, unidad_medida, paso_venta, unidades_medida(permite_fraccion)')
+      .eq('activo', true).order('nombre'),
   ]);
 
   const selProveedor = root.querySelector('#ing-proveedor');
@@ -232,9 +235,48 @@ async function renderNuevoIngreso(root) {
       : '';
   }
 
+  // El paso del campo de cantidad sigue a la unidad del producto elegido:
+  // una funda de arroz no se recibe en 12,5 fundas.
+  const campoCantidad = root.querySelector('#det-cantidad');
+  const pistaUnidad = root.querySelector('#det-unidad');
+
+  // La consulta trae la unidad como relación anidada; esto la aplana para
+  // que el resto del archivo no tenga que saberlo.
+  const fraccionable = (p) =>
+    Boolean(p?.unidades_medida?.permite_fraccion ?? p?.permite_fraccion);
+
+  function ajustarPasoCantidad() {
+    const p = (productos ?? []).find((x) => x.id === selProducto.value);
+    if (!p) {
+      campoCantidad.step = '1';
+      pistaUnidad.textContent = '';
+      return;
+    }
+    const fracciona = fraccionable(p);
+    campoCantidad.step = String(fracciona ? (Number(p.paso_venta) || 0.5) : 1);
+    campoCantidad.inputMode = fracciona ? 'decimal' : 'numeric';
+    pistaUnidad.textContent = fracciona
+      ? `${p.unidad_medida ?? ''} (admite decimales)`
+      : `${p.unidad_medida ?? 'unidad'} entera`;
+  }
+
+  selProducto.addEventListener('change', ajustarPasoCantidad);
+
   root.querySelector('#form-detalle').addEventListener('submit', async (e) => {
     e.preventDefault();
     detMsg.textContent = '';
+
+    // La base rechaza un decimal en un producto por unidad; se avisa antes
+    // para que el error no llegue como un mensaje técnico de PostgreSQL.
+    const prod = (productos ?? []).find((x) => x.id === selProducto.value);
+    const cant = Number(campoCantidad.value);
+    if (prod && !fraccionable(prod) && cant !== Math.round(cant)) {
+      detMsg.textContent =
+        `"${prod.nombre}" se recibe por ${prod.unidad_medida ?? 'unidad'} entera. ` +
+        `Escriba ${Math.round(cant)} en vez de ${cant}.`;
+      detMsg.className = 'form-msg error';
+      return;
+    }
     const { error } = await supabase.from('ingreso_detalle').insert({
       documento_ingreso_id: documentoId,
       producto_id: selProducto.value,

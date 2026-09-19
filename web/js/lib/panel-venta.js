@@ -11,6 +11,7 @@ import {
   cambiarCantidad, agregar, obtenerEstado,
 } from './venta-activa.js';
 import { normalizarCodigoEscaneado } from './ean13.js';
+import { paso, formatear, fracciona, sumarPaso } from './cantidad.js';
 
 let panel = null;
 let colapsado = false;
@@ -122,22 +123,38 @@ function pintar() {
             ${l.calculo.promocionAplicada ? `<span class="badge-promo">${escapar(l.calculo.promocionAplicada.nombre)}</span>` : ''}
           </span>
         </div>
-        <input type="number" class="pv-cant" data-id="${l.producto.producto_id}"
-               value="${l.cantidad}" min="0" step="${l.producto.permite_fraccion ? '0.01' : '1'}" />
+        <span class="pv-stepper">
+          <button type="button" class="pv-paso" data-menos="${l.producto.producto_id}">−</button>
+          <input type="number" class="pv-cant" data-id="${l.producto.producto_id}"
+                 value="${formatear(l.cantidad, l.producto)}" min="0" step="${paso(l.producto)}"
+                 inputmode="${fracciona(l.producto) ? 'decimal' : 'numeric'}" />
+          <button type="button" class="pv-paso" data-mas="${l.producto.producto_id}">+</button>
+        </span>
         <span class="pv-sub">$${l.calculo.totalConPromo.toFixed(2)}</span>
       </li>`)
     .join('');
 
-  panel.querySelectorAll('.pv-cant').forEach((input) => {
-    input.addEventListener('change', () => {
-      const r = cambiarCantidad(input.dataset.id, Number(input.value));
-      if (!r.ok && r.mensaje) {
-        const msg = panel.querySelector('.pv-msg');
-        msg.textContent = r.mensaje;
-        msg.className = 'pv-msg error';
-        pintar();
-      }
+  function avisar(r) {
+    const msg = panel.querySelector('.pv-msg');
+    if (!r.ok && r.mensaje) {
+      msg.textContent = r.mensaje;
+      msg.className = 'pv-msg error';
+    } else {
+      msg.textContent = '';
+    }
+    pintar();
+  }
+
+  panel.querySelectorAll('[data-mas], [data-menos]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.mas ?? btn.dataset.menos;
+      const l = lineas.find((x) => x.producto.producto_id === id);
+      if (l) avisar(cambiarCantidad(id, sumarPaso(l.cantidad, l.producto, btn.dataset.mas ? 1 : -1)));
     });
+  });
+
+  panel.querySelectorAll('.pv-cant').forEach((input) => {
+    input.addEventListener('change', () => avisar(cambiarCantidad(input.dataset.id, input.value)));
   });
 
   panel.querySelector('.pv-total b').textContent = `$${t.total.toFixed(2)}`;

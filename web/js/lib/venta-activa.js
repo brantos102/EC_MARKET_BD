@@ -10,6 +10,7 @@
 // valida al confirmar (ver FLUJO_DE_TRABAJO.md).
 
 import { calcularLinea, calcularImpuesto, totalizarCarrito } from './pricing.js';
+import { normalizar, formatear } from './cantidad.js';
 
 const suscriptores = new Set();
 
@@ -101,11 +102,22 @@ export function fijarTipoVenta(tipo) {
  * Agrega una unidad (o la cantidad indicada).
  * @returns {{ok: boolean, mensaje?: string}}
  */
-export function agregar(producto, cantidad = 1) {
+export function agregar(producto, cantidad = null) {
   if (!producto) return { ok: false, mensaje: 'Producto no válido' };
 
+  // Cada lectura del escáner suma 1, siempre: el lector no sabe pesar,
+  // solo dice "pasó un producto más". En algo que se vende por libra eso
+  // significa una libra, que el cajero corrige con el teclado de peso si
+  // la balanza marca otra cosa. Los botones + y − sí se mueven por el
+  // paso del producto, pero eso lo resuelve sumarPaso(), no esto.
+  const incremento = cantidad === null ? 1 : Number(cantidad);
+
   const existente = estado.lineas.find((l) => l.producto.producto_id === producto.producto_id);
-  const nueva = (existente?.cantidad ?? 0) + cantidad;
+  const bruto = (existente?.cantidad ?? 0) + incremento;
+  const ajuste = normalizar(bruto, producto);
+  const nueva = ajuste.cantidad;
+
+  if (nueva <= 0) return { ok: false, mensaje: 'La cantidad debe ser mayor que cero' };
 
   if (nueva > Number(producto.stock)) {
     return {
@@ -115,27 +127,42 @@ export function agregar(producto, cantidad = 1) {
   }
 
   if (existente) existente.cantidad = nueva;
-  else estado.lineas.push({ producto, cantidad });
+  else estado.lineas.push({ producto, cantidad: nueva });
 
   notificar();
-  return { ok: true, mensaje: `${producto.nombre} agregado` };
+  return {
+    ok: true,
+    mensaje: `${producto.nombre} · ${formatear(nueva, producto)} ${producto.unidad ?? ''}`.trim(),
+  };
 }
 
 export function cambiarCantidad(productoId, cantidad) {
   const linea = estado.lineas.find((l) => l.producto.producto_id === productoId);
   if (!linea) return { ok: false };
 
-  if (cantidad <= 0) {
+  if (Number(cantidad) <= 0) {
     estado.lineas = estado.lineas.filter((l) => l.producto.producto_id !== productoId);
     notificar();
     return { ok: true };
   }
-  if (cantidad > Number(linea.producto.stock)) {
-    return { ok: false, mensaje: `Stock insuficiente: quedan ${Number(linea.producto.stock).toFixed(2)}` };
+
+  // Si escribieron 1,03 en algo que se vende por unidad, se corrige a 1 y
+  // se avisa. Se guarda el valor corregido igual: dejar el campo en rojo
+  // y la línea sin actualizar confunde más de lo que ayuda.
+  const ajuste = normalizar(cantidad, linea.producto);
+
+  if (ajuste.cantidad > Number(linea.producto.stock)) {
+    notificar();
+    return {
+      ok: false,
+      mensaje: `Stock insuficiente de "${linea.producto.nombre}": ` +
+               `quedan ${formatear(linea.producto.stock, linea.producto)} ${linea.producto.unidad ?? ''}`.trim(),
+    };
   }
-  linea.cantidad = cantidad;
+
+  linea.cantidad = ajuste.cantidad;
   notificar();
-  return { ok: true };
+  return ajuste.ok ? { ok: true } : { ok: false, mensaje: ajuste.mensaje };
 }
 
 export function vaciar() {

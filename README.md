@@ -33,10 +33,23 @@ bitácora de auditoría. Construido sobre Supabase (PostgreSQL).
 | Impresión de comprobante (térmica 80 mm) | Funcional |
 | Proveedores administrables | Funcional y probado |
 | Perfil de usuario con permisos visibles | Funcional y probado |
+| Menú desplegable con íconos, armado según el rol | Funcional y probado |
+| Sedes con numeración de comprobantes independiente | Funcional y probado |
+| Cantidades por unidad (sin decimales donde no corresponde) | Funcional y probado |
+| Teclado de peso para productos que se pesan | Funcional y probado |
+| Roles y permisos editables sin tocar código | Funcional y probado |
+| Alta de usuarios desde la aplicación | Funcional (requiere publicar la función) |
+| Logotipo e identidad configurables desde Administración | Funcional y probado |
+| Sugerencia de reposición por rotación real | Funcional y probado |
+| Órdenes de compra a proveedores | Funcional y probado |
+| Plantillas de correo HTML con etiquetas | Funcional y probado |
+| Bandeja de salida de correo | Funcional y probado |
+| Envío de correo (comprobantes y órdenes) | Funcional (requiere publicar la función y dominio propio) |
+| Cobro con De Una por QR estático | Funcional y probado |
+| **Integración con la API de De Una** | **Requiere contrato con el banco** |
 | **Exportación a Excel / PDF / CSV** | **No implementado** |
 | **Transferencias de ubicación desde la interfaz** | **Solo en base de datos** |
 | **Facturación electrónica SRI** | **No implementado** |
-| **Envío de factura por correo** | **No implementado** |
 | **Contabilidad integral (asientos, cierres)** | **No implementado** |
 | **ATS y estados financieros** | **No implementado** |
 
@@ -65,6 +78,7 @@ En el proyecto de Supabase → **SQL Editor** → pegar y ejecutar **en orden**:
 | 7 | `db/007_realtime.sql` | Sincronización de stock en vivo entre cajas |
 | 8 | `db/008_roles_seguridad.sql` | **Corrige un bug que bloquea toda escritura de inventario.** Roles, tokens de autorización y datos de empresa |
 | 9 | `db/009_comprobantes_clientes.sql` | Nota de venta y factura, validación de cédula/RUC ecuatorianos, clientes y proveedores |
+| 10 | `db/010_operacion_multisede.sql` | Sedes con numeración propia, cantidades por unidad, catálogo de roles y permisos editables, correo y plantillas, órdenes de compra, De Una |
 
 Si aparece el error *"new row violates row-level security policy"* y no puedes
 aplicar la 008 completa, ejecuta **`db/FIX_RLS_URGENTE.sql`**: es el arreglo
@@ -74,9 +88,14 @@ Todos los scripts son re-ejecutables sin romper nada.
 
 ### 2. Crear el usuario
 
-**Authentication → Users → Add user** (correo y contraseña). La aplicación
-exige sesión iniciada: eso es lo que protege el inventario detrás de la
-anon key, que es pública por diseño.
+**Authentication → Users → Add user** (correo y contraseña). El primero que
+entre queda como ADMIN; desde ahí se crean los demás desde la propia
+aplicación. La aplicación exige sesión iniciada: eso es lo que protege el
+inventario detrás de la anon key, que es pública por diseño.
+
+Para salir a producción —dónde publicar, correo corporativo, aislamiento entre
+establecimientos, alta de usuarios, De Una y normas aplicables— siga
+**[`PUBLICACION.md`](PUBLICACION.md)**.
 
 ### 3. Levantar la aplicación
 

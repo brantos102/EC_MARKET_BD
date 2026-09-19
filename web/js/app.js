@@ -16,8 +16,11 @@ import { cerrarModal } from './lib/modal.js';
 import { alternarPanel } from './lib/panel.js';
 import { actualizarPanelVenta } from './lib/panel-venta.js';
 import { renderAdmin } from './admin.js';
+import { renderCompras } from './compras.js';
 import { aplicarRolEnMenu, limpiarPerfil } from './lib/sesion.js';
 import { abrirPerfil } from './lib/perfil.js';
+import { marcarActivo } from './lib/menu.js';
+import { aplicarMarca } from './lib/marca.js';
 
 const routes = {
   dashboard:    { render: renderDashboard,    title: 'Dashboard' },
@@ -32,6 +35,7 @@ const routes = {
   kardex:       { render: renderKardex,       title: 'Kardex' },
   reportes:     { render: renderReportes,     title: 'Reportes' },
   auditoria:    { render: renderAuditoria,    title: 'Bitácora de auditoría' },
+  compras:      { render: renderCompras,      title: 'Compras a proveedores' },
   admin:        { render: renderAdmin,        title: 'Administración' },
 };
 
@@ -48,9 +52,7 @@ async function navigate() {
   // Al salir del punto de venta se libera la suscripción de tiempo real
   if (hash !== 'pos') cerrarCanalPOS();
 
-  document.querySelectorAll('.nav-link').forEach((link) => {
-    link.classList.toggle('active', link.getAttribute('href') === `#${hash}`);
-  });
+  marcarActivo();
   pageTitle.textContent = route.title;
   document.body.classList.toggle('modo-pos', hash === 'pos');
 
@@ -77,6 +79,9 @@ onAuthReady(async (session) => {
     limpiarPerfil();
     return;
   }
+  // La identidad (logotipo, nombre, lema, color) se lee de la base para
+  // que cambiarla en Administración se vea de inmediato, sin editar HTML.
+  await aplicarMarca();
   await aplicarRolEnMenu();
   const inicial = document.getElementById('perfil-inicial');
   if (inicial) inicial.textContent = (session.user?.email ?? '?').charAt(0);

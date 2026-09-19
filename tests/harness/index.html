@@ -33,27 +33,16 @@
       <div class="sidebar-header">
         <img src="../../web/img/logo-menu.png" alt="Minimarket El Cultivo" class="logo-menu" />
         <span class="lema">Frescura y calidad en cada compra</span>
+        <span class="sede-chip hidden" id="sede-actual"></span>
       </div>
-      <div class="nav-grupo">Operación</div>
-      <a href="#dashboard" class="nav-link active">Dashboard</a>
-      <a href="#pos" class="nav-link destacado">Punto de venta</a>
-      <a href="#ingresos" class="nav-link">Ingreso de mercadería</a>
 
-      <div class="nav-grupo">Bodega</div>
-      <a href="#layout" class="nav-link">Mapa del market</a>
-      <a href="#caducidades" class="nav-link">Caducidades</a>
-      <a href="#kardex" class="nav-link">Kardex</a>
-      <a href="#movimientos" class="nav-link">Ajuste manual</a>
+      <!-- El menú se arma en tiempo de ejecución desde fn_mis_modulos():
+           cada rol ve solo lo suyo y el administrador cambia la matriz de
+           permisos sin que nadie toque este archivo. -->
+      <div class="nav-modulos" id="nav-modulos">
+        <p class="nav-cargando">Cargando menú…</p>
+      </div>
 
-      <div class="nav-grupo">Catálogo</div>
-      <a href="#productos" class="nav-link">Productos</a>
-      <a href="#promociones" class="nav-link">Promociones</a>
-      <a href="#bodegas" class="nav-link">Bodegas</a>
-
-      <div class="nav-grupo">Control</div>
-      <a href="#reportes" class="nav-link">Reportes</a>
-      <a href="#auditoria" class="nav-link">Auditoría</a>
-      <a href="#admin" class="nav-link">Administración</a>
       <div class="sidebar-footer">
         <button id="btn-consulta-global" type="button" class="btn-consulta-lateral"
                 title="Abre una ventana flotante de consulta que se queda abierta al cambiar de módulo">

@@ -6,6 +6,7 @@
 // módulo que no le toca, la base de datos igual le negaría los datos.
 
 import { supabase } from '../supabaseClient.js';
+import { construirMenu, modulosVisibles } from './menu.js';
 
 let perfil = null;
 let promesa = null;
@@ -28,7 +29,14 @@ export function limpiarPerfil() {
 }
 
 async function cargar() {
-  const { data, error } = await supabase.rpc('fn_mi_perfil');
+  // Desde la migración 010 el perfil trae además la sede y el nombre
+  // legible del rol. Si esa función todavía no existe se cae a la
+  // anterior, para que una base a medio migrar siga abriendo.
+  let { data, error } = await supabase.rpc('fn_mi_perfil_completo');
+  if (error) {
+    ({ data, error } = await supabase.rpc('fn_mi_perfil'));
+  }
+
   if (error || !data?.length) {
     // Base sin la migración 008, o usuario sin perfil: se asume el
     // perfil más restrictivo y se deja que RLS decida el resto.
@@ -40,23 +48,22 @@ async function cargar() {
   return perfil;
 }
 
-/** Módulos que cada rol puede ver en el menú. */
-const MODULOS_POR_ROL = {
-  ADMIN: null,    // null = todos
-  BODEGOERO: null,
-  BODEGUERO: ['dashboard', 'pos', 'ingresos', 'layout', 'caducidades', 'kardex',
-              'movimientos', 'productos', 'bodegas', 'reportes'],
-  VENDEDOR: ['dashboard', 'pos', 'layout', 'caducidades', 'promociones', 'kardex'],
-};
-
-export function puedeVer(modulo, rol) {
-  const permitidos = MODULOS_POR_ROL[rol];
-  if (permitidos === null || permitidos === undefined) return true;  // admin o rol desconocido
-  return permitidos.includes(modulo);
+/**
+ * ¿El usuario puede abrir este módulo?
+ *
+ * La respuesta viene del menú que armó la base (permisos_rol). Si por
+ * cualquier motivo el menú aún no se cargó, se deja pasar: la base de
+ * datos sigue siendo la que decide, y bloquear aquí solo conseguiría
+ * dejar al usuario mirando una pantalla en blanco.
+ */
+export function puedeVer(modulo) {
+  const lista = modulosVisibles();
+  if (!lista.length) return true;
+  return lista.some((m) => m.codigo === modulo);
 }
 
 /**
- * Oculta del menú lo que el rol no debe ver y muestra el rol en el pie.
+ * Arma el menú según el rol y muestra rol y sede en el pie.
  * Se llama una vez al iniciar sesión.
  */
 export async function aplicarRolEnMenu() {
@@ -66,27 +73,23 @@ export async function aplicarRolEnMenu() {
   const etiqueta = document.getElementById('rol-actual');
   if (etiqueta) {
     etiqueta.textContent =
-      rol === 'SIN_MIGRACION' ? 'roles no configurados' : rol.toLowerCase();
+      rol === 'SIN_MIGRACION' ? 'roles no configurados'
+      : (p?.rol_nombre ?? rol).toLowerCase();
     etiqueta.className = `rol-chip rol-${rol.toLowerCase()}`;
+    etiqueta.title = p?.rol_descripcion ?? '';
   }
 
-  // Sin la migración 008 aplicada no se esconde nada: sería dejar al
-  // usuario sin menú por un problema de instalación, no de permisos.
-  if (rol === 'SIN_MIGRACION') return;
-
-  document.querySelectorAll('.nav-link').forEach((link) => {
-    const modulo = link.getAttribute('href')?.replace('#', '');
-    link.classList.toggle('hidden', !puedeVer(modulo, rol));
-  });
-
-  // Un grupo del menú que quedó sin enlaces visibles se oculta también
-  document.querySelectorAll('.nav-grupo').forEach((grupo) => {
-    let hayVisible = false;
-    let el = grupo.nextElementSibling;
-    while (el && !el.classList.contains('nav-grupo')) {
-      if (el.classList.contains('nav-link') && !el.classList.contains('hidden')) hayVisible = true;
-      el = el.nextElementSibling;
+  // Sede en la que está operando esta caja. Importa: los comprobantes se
+  // numeran por sede, así que el cajero tiene que ver dónde está parado.
+  const chipSede = document.getElementById('sede-actual');
+  if (chipSede) {
+    if (p?.sede_nombre) {
+      chipSede.textContent = `${p.sede_codigo ?? ''} · ${p.sede_nombre}`.trim();
+      chipSede.classList.remove('hidden');
+    } else {
+      chipSede.classList.add('hidden');
     }
-    grupo.classList.toggle('hidden', !hayVisible);
-  });
+  }
+
+  await construirMenu(document.getElementById('nav-modulos'));
 }

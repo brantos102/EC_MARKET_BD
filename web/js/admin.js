@@ -1,8 +1,11 @@
 import { supabase } from './supabaseClient.js';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 import { renderTable } from './lib/table.js';
 import { abrirModal, cerrarModal } from './lib/modal.js';
 import { traducirErrorSupabase } from './lib/errores.js';
 import { perfilActual, refrescarPerfil } from './lib/sesion.js';
+import { vistaSedes, vistaRoles, vistaCorreo } from './admin-config.js';
+import { refrescarMarca, redimensionarImagen } from './lib/marca.js';
 
 export async function renderAdmin(container) {
   const perfil = await perfilActual();
@@ -21,10 +24,13 @@ export async function renderAdmin(container) {
 
   container.innerHTML = `
     <div class="tabs">
-      <button class="tab active" data-a="usuarios">Usuarios y roles</button>
-      <button class="tab" data-a="tokens">Tokens de autorización</button>
+      <button class="tab active" data-a="usuarios">Usuarios</button>
+      <button class="tab" data-a="roles">Roles y permisos</button>
+      <button class="tab" data-a="sedes">Sedes</button>
+      <button class="tab" data-a="tokens">Tokens</button>
       <button class="tab" data-a="proveedores">Proveedores</button>
-      <button class="tab" data-a="empresa">Datos de la empresa</button>
+      <button class="tab" data-a="correo">Correo y plantillas</button>
+      <button class="tab" data-a="empresa">Empresa e identidad</button>
     </div>
     <div id="admin-vista"></div>
   `;
@@ -38,11 +44,18 @@ export async function renderAdmin(container) {
     });
   });
 
+  const VISTAS = {
+    usuarios: vistaUsuarios,
+    roles: vistaRoles,
+    sedes: vistaSedes,
+    tokens: vistaTokens,
+    proveedores: vistaProveedores,
+    correo: vistaCorreo,
+    empresa: vistaEmpresa,
+  };
+
   function pintar(cual) {
-    if (cual === 'usuarios') vistaUsuarios(vista);
-    else if (cual === 'tokens') vistaTokens(vista);
-    else if (cual === 'proveedores') vistaProveedores(vista);
-    else vistaEmpresa(vista);
+    (VISTAS[cual] ?? vistaUsuarios)(vista);
   }
 
   pintar('usuarios');
@@ -54,58 +67,141 @@ export async function renderAdmin(container) {
 async function vistaUsuarios(destino) {
   destino.innerHTML = '<p class="loading">Cargando usuarios...</p>';
 
-  const { data, error } = await supabase
-    .from('perfiles_usuario')
-    .select('usuario_id, nombre, rol, activo, created_at')
-    .order('created_at');
+  const [{ data, error }, { data: sedes }, { data: roles }] = await Promise.all([
+    supabase.from('perfiles_usuario')
+      .select('usuario_id, nombre, rol, activo, sede_id, created_at')
+      .order('created_at'),
+    supabase.from('sedes').select('id, codigo, nombre').eq('activa', true).order('codigo'),
+    supabase.from('roles_catalogo').select('codigo, nombre, descripcion, nivel')
+      .eq('activo', true).order('nivel'),
+  ]);
 
   if (error) {
     destino.innerHTML = traducirErrorSupabase(error, 'perfiles_usuario');
     return;
   }
 
+  // Si la migración 010 aún no está aplicada se usan los tres roles viejos,
+  // para que la pantalla siga sirviendo en vez de quedarse vacía.
+  const catalogo = (roles?.length ? roles : [
+    { codigo: 'ADMIN', nombre: 'Administrador' },
+    { codigo: 'BODEGUERO', nombre: 'Bodeguero' },
+    { codigo: 'VENDEDOR', nombre: 'Cajero / Vendedor' },
+  ]);
+
   destino.innerHTML = `
     <div class="panel">
-      <h3>Qué puede hacer cada rol</h3>
-      <table class="dyn-table">
-        <thead><tr><th>Acción</th><th>Admin</th><th>Bodeguero</th><th>Vendedor</th></tr></thead>
-        <tbody>
-          <tr><td>Vender y cobrar</td><td>Sí</td><td>Sí</td><td>Sí</td></tr>
-          <tr><td>Consultar stock, ubicaciones y caducidades</td><td>Sí</td><td>Sí</td><td>Sí</td></tr>
-          <tr><td>Ingresar mercadería</td><td>Sí</td><td>Sí</td><td>No</td></tr>
-          <tr><td>Mover productos de ubicación</td><td>Sí</td><td>Sí</td><td>Con token</td></tr>
-          <tr><td>Ajustar inventario</td><td>Sí</td><td>Con token</td><td>Con token</td></tr>
-          <tr><td>Anular una venta</td><td>Sí</td><td>Con token</td><td>Con token</td></tr>
-          <tr><td>Cambiar precios y promociones</td><td>Sí</td><td>No</td><td>No</td></tr>
-          <tr><td>Administrar usuarios y emitir tokens</td><td>Sí</td><td>No</td><td>No</td></tr>
-        </tbody>
-      </table>
-      <p class="nota">Estos permisos no son solo de pantalla: están aplicados como políticas
-      en la base de datos, así que se respetan aunque alguien intente saltarse la interfaz.</p>
+      <h3>Crear un usuario</h3>
+      <form id="form-usuario" class="inline-form">
+        <input type="text" id="us-nombre" placeholder="Nombre y apellido" required />
+        <input type="email" id="us-email" placeholder="Correo con el que va a entrar" required />
+        <input type="password" id="us-clave" placeholder="Contraseña temporal" required minlength="8" />
+        <select id="us-rol">
+          ${catalogo.map((r) => `<option value="${r.codigo}" ${r.codigo === 'VENDEDOR' ? 'selected' : ''}>${r.nombre}</option>`).join('')}
+        </select>
+        <select id="us-sede">
+          ${(sedes ?? []).map((s) => `<option value="${s.id}">${s.codigo} · ${s.nombre}</option>`).join('')}
+        </select>
+        <button type="submit">Crear usuario</button>
+        <span id="us-msg" class="form-msg"></span>
+      </form>
+      <p class="nota">La contraseña es temporal: dígasela a la persona y pídale que la
+      cambie en su primer ingreso. Esta pantalla no puede ver la contraseña de nadie
+      una vez guardada, ni siquiera el administrador.</p>
     </div>
 
-    <div class="panel">
-      <h3>Agregar un vendedor nuevo</h3>
-      <p class="nota">Por seguridad, la creación de la cuenta se hace en Supabase →
-      <b>Authentication → Users → Add user</b> (crear cuentas desde el navegador exigiría
-      exponer la clave de administrador del proyecto, que nunca debe salir del servidor).
-      Apenas esa persona entre por primera vez, aparecerá en esta lista como VENDEDOR y
-      aquí le cambias el rol si corresponde.</p>
+    <div class="panel" id="panel-manual" hidden>
+      <h3>Alta manual (si el botón de arriba no está disponible)</h3>
+      <ol class="pasos">
+        <li>En Supabase, entre a <b>Authentication → Users → Add user</b> y cree la
+            cuenta con el correo de la persona y una contraseña temporal. Marque
+            <i>Auto Confirm User</i> para que pueda entrar sin verificar el correo.</li>
+        <li>Pídale que ingrese una vez al sistema. En ese momento aparece en la lista
+            de abajo con el rol <b>Cajero / Vendedor</b>, que es el más restringido.</li>
+        <li>Aquí mismo le cambia el rol y le asigna la sede donde va a trabajar.</li>
+      </ol>
+      <p class="nota">Este camino es el de respaldo. El formulario de arriba hace lo
+      mismo en un paso, y solo deja de funcionar si todavía no se ha publicado la
+      función <code>crear-usuario</code> (el procedimiento está en
+      <code>PUBLICACION.md</code>). Se hace con una función en el servidor y no
+      directamente desde el navegador porque dar de alta cuentas exige la clave de
+      servicio del proyecto, que abre la base entera: si viajara al navegador,
+      cualquiera podría leerla en el código fuente de la página.</p>
+      <p class="nota">Lo que puede hacer cada rol se configura en la pestaña
+      <b>Roles y permisos</b>.</p>
     </div>
 
     <div id="tabla-usuarios"></div>
   `;
 
+  destino.querySelector('#form-usuario')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msg = destino.querySelector('#us-msg');
+    msg.textContent = 'Creando cuenta…';
+    msg.className = 'form-msg';
+
+    const { data: { session } } = await supabase.auth.getSession();
+
+    try {
+      const respuesta = await fetch(`${SUPABASE_URL}/functions/v1/crear-usuario`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${session?.access_token ?? SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({
+          nombre: destino.querySelector('#us-nombre').value.trim(),
+          email: destino.querySelector('#us-email').value.trim(),
+          password: destino.querySelector('#us-clave').value,
+          rol: destino.querySelector('#us-rol').value,
+          sede_id: destino.querySelector('#us-sede').value || null,
+        }),
+      });
+
+      // 404 significa que la función todavía no está publicada. En ese
+      // caso no se deja al administrador sin salida: se le muestra el
+      // camino manual en vez de un error críptico.
+      if (respuesta.status === 404) {
+        destino.querySelector('#panel-manual').hidden = false;
+        msg.textContent = 'Aún no se ha publicado la función crear-usuario. ' +
+                          'Abajo quedó el procedimiento manual.';
+        msg.className = 'form-msg error';
+        return;
+      }
+
+      const cuerpo = await respuesta.json().catch(() => ({}));
+      if (!respuesta.ok) {
+        msg.textContent = cuerpo.error ?? `Error ${respuesta.status}`;
+        msg.className = 'form-msg error';
+        return;
+      }
+
+      msg.textContent = `Usuario ${cuerpo.email} creado como ${cuerpo.rol}.`;
+      msg.className = 'form-msg ok';
+      e.target.reset();
+      vistaUsuarios(destino);
+
+    } catch (err) {
+      destino.querySelector('#panel-manual').hidden = false;
+      msg.textContent = `No se pudo contactar la función de alta (${err.message}). ` +
+                        'Use el procedimiento manual de abajo.';
+      msg.className = 'form-msg error';
+    }
+  });
+
   renderTable(destino.querySelector('#tabla-usuarios'), {
     columns: [
       { key: 'nombre', label: 'Usuario' },
-      { key: 'rol', label: 'Rol' },
+      { key: 'rol', label: 'Rol actual' },
+      { key: 'sede_txt', label: 'Sede' },
       { key: 'estado', label: 'Estado' },
       { key: 'desde', label: 'Desde' },
-      { key: 'acciones', label: '' },
+      { key: 'acciones', label: 'Cambiar' },
     ],
     rows: (data ?? []).map((u) => ({
       ...u,
+      sede_txt: (sedes ?? []).find((s) => s.id === u.sede_id)?.nombre ?? '—',
       estado: u.activo ? 'Activo' : 'Inactivo',
       desde: u.created_at ? new Date(u.created_at).toLocaleDateString('es-EC') : '—',
       acciones: '',
@@ -122,9 +218,13 @@ async function vistaUsuarios(destino) {
     if (!u) return;
     const celda = tr.lastElementChild;
     celda.innerHTML = `
-      <select class="sel-rol" data-id="${u.usuario_id}">
-        ${['ADMIN', 'BODEGUERO', 'VENDEDOR'].map((r) =>
-          `<option value="${r}" ${r === u.rol ? 'selected' : ''}>${r}</option>`).join('')}
+      <select class="sel-rol" data-id="${u.usuario_id}" title="Rol del usuario">
+        ${catalogo.map((r) =>
+          `<option value="${r.codigo}" ${r.codigo === u.rol ? 'selected' : ''}>${r.nombre}</option>`).join('')}
+      </select>
+      <select class="sel-sede" data-id="${u.usuario_id}" title="Sede donde trabaja">
+        ${(sedes ?? []).map((s) =>
+          `<option value="${s.id}" ${s.id === u.sede_id ? 'selected' : ''}>${s.codigo} · ${s.nombre}</option>`).join('')}
       </select>
       <button class="btn-mini" data-toggle="${u.usuario_id}" data-activo="${u.activo}">
         ${u.activo ? 'Desactivar' : 'Activar'}
@@ -140,6 +240,15 @@ async function vistaUsuarios(destino) {
         await refrescarPerfil();
         vistaUsuarios(destino);
       }
+    });
+  });
+
+  destino.querySelectorAll('.sel-sede').forEach((sel) => {
+    sel.addEventListener('change', async () => {
+      const { error: err } = await supabase.from('perfiles_usuario')
+        .update({ sede_id: sel.value }).eq('usuario_id', sel.dataset.id);
+      if (err) alert(`No se pudo cambiar la sede: ${err.message}`);
+      else vistaUsuarios(destino);
     });
   });
 
@@ -303,9 +412,52 @@ async function vistaEmpresa(destino) {
         <label class="ancho-completo">Pie del recibo
           <input name="pie_recibo" value="${v(e.pie_recibo)}" />
         </label>
-        <label class="ancho-completo">Logo (URL o data URI)
-          <input name="logo_url" value="${v(e.logo_url)}" placeholder="https://... o data:image/png;base64,..." />
-        </label>
+        <div class="ancho-completo bloque-logo">
+          <h4>Logotipo</h4>
+          <p class="nota">Se usa en el menú, en la pantalla de ingreso, en el ícono de
+          la pestaña y en el recibo impreso. La imagen se reduce a 256 px antes de
+          guardarla: así el logotipo se ve nítido y la aplicación sigue abriendo rápido
+          (un PNG de varios megabytes dentro de la base haría lenta cada carga de la caja).</p>
+          <div class="logo-editor">
+            <img id="logo-previa" class="logo-previa"
+                 src="${e.logo_url || 'img/logo-menu.png'}" alt="Vista previa del logotipo" />
+            <div class="logo-controles">
+              <input type="file" id="logo-archivo" accept="image/png,image/jpeg,image/svg+xml,image/webp" />
+              <button type="button" class="btn-secundario" id="logo-quitar">Volver al logotipo del archivo</button>
+              <span id="logo-msg" class="form-msg"></span>
+            </div>
+          </div>
+          <label>O pegue una dirección de imagen
+            <input name="logo_url" id="logo-url" value="${v(e.logo_url)}"
+                   placeholder="https://… o data:image/png;base64,…" />
+          </label>
+        </div>
+
+        <div class="ancho-completo bloque-logo">
+          <h4>Cobro con De Una!</h4>
+          <p class="nota">Descargue su QR de cobro desde la banca en línea del Banco
+          Pichincha (Cobros → Mi QR) y cárguelo aquí. La caja lo muestra a pantalla
+          completa al elegir De Una como forma de pago.</p>
+          <div class="logo-editor">
+            <img id="deuna-previa" class="logo-previa ${e.deuna_qr_url ? '' : 'hidden'}"
+                 src="${e.deuna_qr_url || ''}" alt="QR de cobro De Una" />
+            <div class="logo-controles">
+              <input type="file" id="deuna-archivo" accept="image/png,image/jpeg,image/webp" />
+              <span id="deuna-msg" class="form-msg"></span>
+            </div>
+          </div>
+          <input type="hidden" name="deuna_qr_url" id="deuna-url" value="${v(e.deuna_qr_url)}" />
+          <label>Titular de la cuenta De Una
+            <input name="deuna_titular" value="${v(e.deuna_titular)}" />
+          </label>
+          <label>Teléfono asociado
+            <input name="deuna_telefono" value="${v(e.deuna_telefono)}" />
+          </label>
+          <label>Mostrar De Una en la caja
+            <input type="checkbox" name="deuna_activo" ${e.deuna_activo ? 'checked' : ''} />
+          </label>
+        </div>
+
         <div class="ancho-completo">
           <button type="submit" class="btn-primary">Guardar</button>
           <span id="emp-msg" class="form-msg"></span>
@@ -313,25 +465,88 @@ async function vistaEmpresa(destino) {
       </form>
     </div>`;
 
+  // ---- Carga del logotipo ----
+  const campoUrl = destino.querySelector('#logo-url');
+  const previa = destino.querySelector('#logo-previa');
+  const logoMsg = destino.querySelector('#logo-msg');
+
+  destino.querySelector('#logo-archivo').addEventListener('change', async (ev) => {
+    const archivo = ev.target.files?.[0];
+    if (!archivo) return;
+    logoMsg.textContent = 'Procesando imagen…';
+    logoMsg.className = 'form-msg';
+    try {
+      const dataUri = await redimensionarImagen(archivo, 256);
+      campoUrl.value = dataUri;
+      previa.src = dataUri;
+      logoMsg.textContent = `Listo (${Math.round(dataUri.length / 1024)} KB). Pulse Guardar para aplicarlo.`;
+      logoMsg.className = 'form-msg ok';
+    } catch (err) {
+      logoMsg.textContent = err.message;
+      logoMsg.className = 'form-msg error';
+    }
+  });
+
+  destino.querySelector('#logo-quitar').addEventListener('click', () => {
+    campoUrl.value = '';
+    previa.src = 'img/logo-menu.png';
+    logoMsg.textContent = 'Se usará el archivo del servidor. Pulse Guardar.';
+    logoMsg.className = 'form-msg';
+  });
+
+  // ---- Carga del QR de De Una ----
+  const deunaUrl = destino.querySelector('#deuna-url');
+  const deunaPrevia = destino.querySelector('#deuna-previa');
+  const deunaMsg = destino.querySelector('#deuna-msg');
+
+  destino.querySelector('#deuna-archivo').addEventListener('change', async (ev) => {
+    const archivo = ev.target.files?.[0];
+    if (!archivo) return;
+    deunaMsg.textContent = 'Procesando…';
+    deunaMsg.className = 'form-msg';
+    try {
+      // El QR se guarda más grande: si se reduce demasiado, el lector del
+      // teléfono deja de distinguir los módulos y no escanea.
+      const dataUri = await redimensionarImagen(archivo, 512);
+      deunaUrl.value = dataUri;
+      deunaPrevia.src = dataUri;
+      deunaPrevia.classList.remove('hidden');
+      deunaMsg.textContent = 'QR cargado. Pulse Guardar.';
+      deunaMsg.className = 'form-msg ok';
+    } catch (err) {
+      deunaMsg.textContent = err.message;
+      deunaMsg.className = 'form-msg error';
+    }
+  });
+
   destino.querySelector('#form-empresa').addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const msg = destino.querySelector('#emp-msg');
     const fd = new FormData(ev.target);
     const payload = Object.fromEntries(fd.entries());
     payload.obligado_contabilidad = fd.get('obligado_contabilidad') === 'on';
+    payload.deuna_activo = fd.get('deuna_activo') === 'on';
     for (const k of Object.keys(payload)) {
       if (payload[k] === '') payload[k] = null;
     }
     payload.updated_at = new Date().toISOString();
 
+    msg.textContent = 'Guardando…';
+    msg.className = 'form-msg';
+
     const { error: errUp } = await supabase.from('empresa').update(payload).eq('id', true);
     if (errUp) {
       msg.textContent = errUp.message;
       msg.className = 'form-msg error';
-    } else {
-      msg.textContent = 'Datos guardados.';
-      msg.className = 'form-msg ok';
+      return;
     }
+
+    // ESTO ES LO QUE FALTABA ANTES: guardar en la base no bastaba, porque
+    // el logotipo estaba escrito a mano en index.html. Ahora se relee la
+    // fila y se repinta la identidad en el acto, sin recargar la página.
+    await refrescarMarca();
+    msg.textContent = 'Datos guardados y aplicados.';
+    msg.className = 'form-msg ok';
   });
 }
 
