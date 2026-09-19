@@ -8,6 +8,12 @@ param([int]$Port = 8080)
 
 $root = if ($PSScriptRoot) { $PSScriptRoot } else { (Get-Location).Path }
 
+# Si el script quedó en la raíz del proyecto en vez de en web\, sirve web\ igual.
+if (-not (Test-Path (Join-Path $root "index.html")) -and
+        (Test-Path (Join-Path $root "web\index.html"))) {
+    $root = Join-Path $root "web"
+}
+
 $listener = New-Object System.Net.HttpListener
 $listener.Prefixes.Add("http://localhost:$Port/")
 
