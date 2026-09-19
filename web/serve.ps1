@@ -29,8 +29,15 @@ Write-Host ""
 Write-Host "  Centro de Control - Market" -ForegroundColor Cyan
 Write-Host "  Sirviendo: $root"
 Write-Host "  Abre: http://localhost:$Port/" -ForegroundColor Green
-Write-Host "  (Ctrl + C para detener)"
+Write-Host "  (Ctrl + C para detener; si no responde, cierra la ventana)"
 Write-Host ""
+
+# Verificación rápida: avisa si se está sirviendo una versión incompleta.
+if (-not (Test-Path (Join-Path $root "js\pos.js"))) {
+    Write-Host "  AVISO: no se encuentra js\pos.js en esta carpeta." -ForegroundColor Yellow
+    Write-Host "  Estás sirviendo una version antigua del proyecto (sin punto de venta)." -ForegroundColor Yellow
+    Write-Host ""
+}
 
 Start-Process "http://localhost:$Port/"
 
@@ -49,7 +56,13 @@ $mime = @{
 
 try {
     while ($listener.IsListening) {
-        $context = $listener.GetContext()
+        # Se usa GetContextAsync con espera en tramos cortos en vez de
+        # GetContext(): la versión bloqueante deja a PowerShell sordo a
+        # Ctrl + C y obliga a cerrar la ventana para detener el servidor.
+        $tarea = $listener.GetContextAsync()
+        while (-not $tarea.AsyncWaitHandle.WaitOne(250)) { }
+        $context = $tarea.GetAwaiter().GetResult()
+
         $urlPath = $context.Request.Url.LocalPath
         if ($urlPath -eq "/") { $urlPath = "/index.html" }
 
