@@ -586,16 +586,30 @@ function pintarDeuna(modal) {
   if (!caja || caja.dataset.listo) return;
 
   const e = empresaActual();
-  if (e?.deuna_qr_url) {
-    caja.innerHTML = `<img src="${e.deuna_qr_url}" alt="QR de cobro De Una" />`;
-    nota.textContent = e.deuna_titular
-      ? `Cuenta de ${e.deuna_titular}. El cliente digita el monto en la app.`
-      : 'El cliente escanea y digita el monto en la app De Una.';
+  const url = e?.deuna_qr_url;
+  const mime = e?.deuna_qr_mime ?? '';
+
+  if (url) {
+    // El QR puede venir como imagen o como PDF: el banco entrega uno u
+    // otro según por dónde se descargue. El PDF se muestra con <embed>,
+    // que los navegadores saben dibujar sin librerías añadidas.
+    caja.innerHTML = mime === 'application/pdf' || /^data:application\/pdf/.test(url)
+      ? `<embed src="${url}#toolbar=0&navpanes=0" type="application/pdf" class="deuna-pdf" />`
+      : `<img src="${url}" alt="Código QR de cobro De Una" />`;
+    nota.textContent = e.deuna_instrucciones
+      || 'Escanee el código con la app De Una y envíe el valor indicado.';
   } else {
     caja.innerHTML = '<div class="deuna-falta">Sin QR cargado</div>';
     nota.textContent =
       'Cargue el QR de cobro en Administración → Empresa → De Una. ' +
-      'Mientras tanto puede cobrar igual y anotar el código de la transacción.';
+      'Mientras tanto el cobro se puede registrar igual.';
+  }
+
+  const titular = modal.querySelector('#deuna-titular');
+  if (titular) {
+    titular.textContent = e?.deuna_titular
+      ? `Cuenta de ${e.deuna_titular}${e.deuna_telefono ? ` · ${e.deuna_telefono}` : ''}`
+      : '';
   }
   caja.dataset.listo = '1';
 }
@@ -629,8 +643,15 @@ function abrirModalPago(total, onConfirmar) {
         <div class="deuna-caja">
           <div class="deuna-qr" id="deuna-qr"></div>
           <div class="deuna-datos">
-            <p class="deuna-monto">Cobrar <b>$${total.toFixed(2)}</b></p>
+            <p class="deuna-etiqueta">El cliente debe enviar</p>
+            <p class="deuna-monto"><b>$${total.toFixed(2)}</b></p>
             <p class="nota" id="deuna-nota"></p>
+            <p class="nota" id="deuna-titular"></p>
+            <label class="deuna-ref">
+              Referencia (opcional)
+              <input type="text" id="deuna-referencia"
+                     placeholder="N.º de comprobante, si el cliente lo dicta" />
+            </label>
           </div>
         </div>
       </div>
@@ -660,14 +681,20 @@ function abrirModalPago(total, onConfirmar) {
           forma = btn.dataset.forma;
           const esEfectivo = forma === 'EFECTIVO';
           const esDeuna = forma === 'TRANSFERENCIA_DEUNA';
+
+          // Tres paneles excluyentes: efectivo, De Una, y el del
+          // voucher para tarjeta o transferencia bancaria. De Una tiene
+          // el suyo propio porque no pide código, solo muestra el QR y
+          // el monto que el cliente debe enviar.
           modal.querySelector('#pago-efectivo').classList.toggle('hidden', !esEfectivo);
-          modal.querySelector('#pago-codigo').classList.toggle('hidden', esEfectivo);
           modal.querySelector('#pago-deuna').classList.toggle('hidden', !esDeuna);
+          modal.querySelector('#pago-codigo').classList.toggle('hidden', esEfectivo || esDeuna);
+
           if (esDeuna) pintarDeuna(modal);
-          modal.querySelector('#pago-codigo-label').textContent =
-            esDeuna ? 'Código de comprobante De Una'
-            : forma.startsWith('TARJETA') ? 'N.º de voucher'
-            : 'N.º de transferencia';
+          if (!esEfectivo && !esDeuna) {
+            modal.querySelector('#pago-codigo-label').textContent =
+              forma.startsWith('TARJETA') ? 'N.º de voucher' : 'N.º de transferencia';
+          }
         });
       });
 
@@ -701,10 +728,27 @@ function abrirModalPago(total, onConfirmar) {
         return;
       }
       onConfirmar([{ forma_pago: 'EFECTIVO', monto: total, recibido, cambio: recibido - total }]);
+
+    } else if (forma === 'TRANSFERENCIA_DEUNA') {
+      // De Una es una transferencia: el cliente escanea el QR y envía el
+      // monto que se le dijo. No hay token ni código que el sistema
+      // pueda comprobar, así que exigir uno solo frenaba la caja y
+      // empujaba al cajero a inventar cualquier cosa para poder cerrar.
+      // La referencia se guarda si el cliente la dicta, y nada más.
+      onConfirmar([{
+        forma_pago: forma,
+        monto: total,
+        codigo_transaccion: modal.querySelector('#deuna-referencia')?.value.trim() || null,
+        banco: 'Banco Pichincha — De Una',
+      }]);
+
     } else {
+      // Tarjeta y transferencia bancaria sí dejan un voucher o un número
+      // de transferencia en el momento: ahí el dato existe y pedirlo es
+      // lo que permite cuadrar la caja al cierre.
       const codigo = modal.querySelector('#pago-codigo-input').value.trim();
       if (!codigo) {
-        msg.textContent = 'Ingrese el código de la transacción';
+        msg.textContent = 'Ingrese el número del voucher o de la transferencia';
         msg.className = 'form-msg error';
         return;
       }

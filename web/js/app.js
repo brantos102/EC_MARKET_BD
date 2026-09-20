@@ -21,6 +21,7 @@ import { aplicarRolEnMenu, limpiarPerfil } from './lib/sesion.js';
 import { abrirPerfil } from './lib/perfil.js';
 import { marcarActivo } from './lib/menu.js';
 import { aplicarMarca } from './lib/marca.js';
+import { estadoInstalacion, abrirInstalador, abrirConfiguracionConexion } from './instalador.js';
 
 const routes = {
   dashboard:    { render: renderDashboard,    title: 'Dashboard' },
@@ -74,11 +75,44 @@ window.addEventListener('hashchange', navigate);
 document.getElementById('btn-consulta-global')?.addEventListener('click', alternarPanel);
 document.getElementById('btn-perfil')?.addEventListener('click', abrirPerfil);
 
+// La pantalla de conexión se puede abrir sin haber iniciado sesión:
+// es justamente para cuando la aplicación todavía no sabe a qué base
+// hablar.
+const pantallaInst = document.getElementById('instalador-screen');
+const cuerpoInst = document.getElementById('instalador-contenido');
+
+document.getElementById('btn-conexion')?.addEventListener('click', () => {
+  document.getElementById('login-screen')?.classList.add('hidden');
+  pantallaInst.classList.remove('hidden');
+  document.getElementById('inst-titulo').textContent = 'Conexión a la base de datos';
+  document.getElementById('inst-subtitulo').textContent =
+    'Dónde vive el inventario de este negocio';
+  const salir = document.getElementById('inst-salir');
+  salir.classList.remove('hidden');
+  salir.onclick = () => location.reload();
+  abrirConfiguracionConexion(cuerpoInst);
+});
+
 onAuthReady(async (session) => {
   if (!session) {
     limpiarPerfil();
     return;
   }
+
+  // Antes de pintar nada se comprueba si esta base ya fue instalada. Una
+  // base recién migrada no tiene tipo de negocio ni catálogos, así que
+  // llevar al usuario directo al dashboard sería mostrarle un sistema
+  // vacío sin decirle qué le falta.
+  const estado = await estadoInstalacion();
+  if (!estado.completada) {
+    document.getElementById('app-shell')?.classList.add('hidden');
+    pantallaInst.classList.remove('hidden');
+    await abrirInstalador(cuerpoInst, () => location.reload());
+    return;
+  }
+
+  pantallaInst.classList.add('hidden');
+
   // La identidad (logotipo, nombre, lema, color) se lee de la base para
   // que cambiarla en Administración se vea de inmediato, sin editar HTML.
   await aplicarMarca();

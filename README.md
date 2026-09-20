@@ -45,7 +45,9 @@ bitácora de auditoría. Construido sobre Supabase (PostgreSQL).
 | Plantillas de correo HTML con etiquetas | Funcional y probado |
 | Bandeja de salida de correo | Funcional y probado |
 | Envío de correo (comprobantes y órdenes) | Funcional (requiere publicar la función y dominio propio) |
-| Cobro con De Una por QR estático | Funcional y probado |
+| Cobro con De Una por QR estático (imagen o PDF) | Funcional y probado |
+| Asistente de instalación por tipo de negocio | Funcional y probado |
+| Conexión a la base configurable desde la propia pantalla | Funcional y probado |
 | **Integración con la API de De Una** | **Requiere contrato con el banco** |
 | **Exportación a Excel / PDF / CSV** | **No implementado** |
 | **Transferencias de ubicación desde la interfaz** | **Solo en base de datos** |
@@ -79,6 +81,7 @@ En el proyecto de Supabase → **SQL Editor** → pegar y ejecutar **en orden**:
 | 8 | `db/008_roles_seguridad.sql` | **Corrige un bug que bloquea toda escritura de inventario.** Roles, tokens de autorización y datos de empresa |
 | 9 | `db/009_comprobantes_clientes.sql` | Nota de venta y factura, validación de cédula/RUC ecuatorianos, clientes y proveedores |
 | 10 | `db/010_operacion_multisede.sql` | Sedes con numeración propia, cantidades por unidad, catálogo de roles y permisos editables, correo y plantillas, órdenes de compra, De Una |
+| 11 | `db/011_instalacion_deuna.sql` | Asistente de instalación, tipo de negocio bloqueado tras instalar, cobro De Una sin código |
 
 Si aparece el error *"new row violates row-level security policy"* y no puedes
 aplicar la 008 completa, ejecuta **`db/FIX_RLS_URGENTE.sql`**: es el arreglo
@@ -96,6 +99,9 @@ inventario detrás de la anon key, que es pública por diseño.
 Para salir a producción —dónde publicar, correo corporativo, aislamiento entre
 establecimientos, alta de usuarios, De Una y normas aplicables— siga
 **[`PUBLICACION.md`](PUBLICACION.md)**.
+
+Si se pregunta por qué la base es PostgreSQL y no Firebase, y cómo abrirla desde
+DBeaver o pgAdmin, está en **[`ANALISIS_BASE_DE_DATOS.md`](ANALISIS_BASE_DE_DATOS.md)**.
 
 ### 3. Levantar la aplicación
 

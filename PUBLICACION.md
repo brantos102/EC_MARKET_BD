@@ -7,6 +7,52 @@ con De Una.
 
 ---
 
+## 0. La primera vez: el asistente de instalación
+
+Una base recién migrada no entra al sistema: entra al asistente. Son tres
+pasos y arranca solo, la primera vez que alguien inicia sesión.
+
+**Paso 1 — tipo de negocio.** Minimarket, ferretería, farmacia, tecnología,
+papelería u "otro". La elección carga las unidades de medida, las categorías y
+las zonas de bodega que le corresponden: una ferretería arranca con metros,
+galones y rollos y sin control de caducidad; una farmacia arranca con blísters
+y con el lote obligatorio.
+
+**Esta elección no se puede cambiar después.** No es un capricho de la
+interfaz: hay un trigger en la base que lo impide, así que se cumple también si
+alguien edita la tabla desde un cliente SQL. El motivo es contable — un
+minimarket con seis meses de kardex en libras y arrobas convertido en ferretería
+dejaría un histórico que ya no significa nada. Para otro tipo de negocio, base
+nueva. Es lo mismo que hace un sistema contable con el plan de cuentas cuando ya
+hay movimientos cargados.
+
+**Paso 2 — datos del contribuyente.** Razón social, RUC, dirección, teléfono y
+nombre del local. Todo esto sí se corrige después desde Administración.
+
+**Paso 3 — confirmación.** Se muestra el resumen, hay que marcar explícitamente
+que se entiende que el tipo queda fijo, y recién ahí se habilita el botón.
+
+Al terminar, quien instaló queda como administrador y el sistema queda listo
+para cargar el inventario inicial desde *Ingreso de mercadería*.
+
+### Conectar esta copia a su base
+
+El mismo paquete sirve para varios negocios, así que la conexión no obliga a
+editar archivos. En la pantalla de ingreso hay un enlace **Configurar la
+conexión a la base**: se pega la dirección del proyecto y la clave pública, se
+pulsa *Probar conexión* y solo si la base responde se habilita el botón de
+guardar. Lo guardado en ese equipo manda sobre lo que trae `web/js/config.js`,
+que queda como valor de fábrica.
+
+La pantalla distingue tres situaciones y lo dice con nombre y apellido: que la
+dirección esté mal escrita, que el proyecto exista pero le falten las
+migraciones, o que el dominio de la página no esté autorizado en el CORS de
+Supabase. Y si alguien pega por error la clave **secreta** (`service_role`), la
+rechaza explicando por qué: esa clave abre la base entera saltándose los
+permisos y en el navegador queda a la vista de cualquiera.
+
+---
+
 ## 1. Qué se publica y dónde
 
 El sistema tiene dos mitades que se publican por separado.
@@ -278,16 +324,27 @@ millones de usuarios. Hay dos formas de usarlo y conviene no confundirlas.
 
 ### Lo que ya funciona hoy: QR estático
 
-El comercio descarga su QR de cobro desde la banca en línea del Banco
-Pichincha y lo carga en **Administración → Empresa → De Una**. Al elegir
-*De Una* en el modal de cobro, la caja muestra el QR a pantalla completa; el
-cliente lo escanea, digita el monto en su aplicación y paga. El cajero anota
-el código de la transacción, que queda guardado con la venta.
+El comercio descarga su código de cobro desde la banca en línea del Banco
+Pichincha y lo carga en **Administración → Empresa → De Una**, tal como venga:
+PNG, JPG o el PDF que entrega el banco. Un .docx no sirve —el navegador no lo
+puede dibujar—; si el QR está dentro de un Word, ábralo, clic derecho sobre la
+imagen y guárdela como PNG.
 
-Es un QR **estático**: no lleva el monto incluido, lo digita el cliente. Es
-exactamente como se cobra hoy en mostrador, solo que sin buscar el papel con
-el QR impreso. Esto no necesita ningún trámite adicional más allá de tener la
-cuenta del banco.
+Al elegir *De Una* en el cobro, la caja muestra el código en grande junto al
+monto que el cliente debe enviar. El cliente escanea, digita ese valor en su
+aplicación y transfiere.
+
+**El cobro con De Una no pide código, y eso es deliberado.** De Una es una
+transferencia: no hay token ni comprobante que el sistema pueda comprobar en el
+momento. Obligar al cajero a escribir algo para poder cerrar la venta solo
+conseguía frenar la fila y empujarlo a inventar cualquier cosa, que es peor que
+no tener el dato. Queda un campo de referencia **opcional**, por si el cliente
+dicta el número de su comprobante.
+
+Tarjeta y transferencia bancaria sí lo siguen pidiendo, porque ahí el voucher
+existe en ese instante y es lo que permite cuadrar la caja al cierre.
+
+Esto no necesita ningún trámite más allá de tener la cuenta del banco.
 
 ### Lo que requiere contrato: la API
 
@@ -308,10 +365,15 @@ primero, con el QR estático, qué porcentaje de las ventas se paga por De Una;
 si resulta significativo, la integración se justifica.
 
 **La integración de la API se puede hacer después de publicar sin tocar nada de
-lo que ya funciona.** El modal de cobro, la tabla `pagos_venta` y la forma de
-pago `TRANSFERENCIA_DEUNA` ya están en su sitio; lo único que cambiaría es que
-el código de la transacción, en vez de digitarlo el cajero, lo escribiría el
-webhook. Por eso vale la pena publicar ya y dejar esto para una segunda etapa.
+lo que ya funciona.** El terreno ya está preparado: en Administración hay un
+selector de modo (*QR fijo* / *API con token*), y la tabla
+`deuna_transacciones` existe desde la migración 011 precisamente para no tener
+que migrar en producción con ventas en curso el día que el banco habilite el
+servicio. Mientras el modo API no esté conectado, la caja sigue cobrando con el
+QR fijo aunque el modo quede elegido.
+
+La clave del API no se guardará en la base ni en la pantalla: va como secreto de
+una función en el servidor, por la misma razón que la del correo.
 
 ---
 
@@ -372,8 +434,10 @@ firma del contribuyente.
 
 **Base de datos**
 
-- [ ] Migraciones `db/*.sql` aplicadas en orden hasta `010`.
-- [ ] `db/tests_010.sql` corre sin errores.
+- [ ] Migraciones `db/*.sql` aplicadas en orden hasta `011`.
+- [ ] `db/tests_010.sql` y `db/tests_011.sql` corren sin errores.
+- [ ] Asistente de instalación completado con el tipo de negocio correcto.
+      Revíselo dos veces: es lo único que no se puede corregir después.
 - [ ] Datos de la empresa completos en **Administración → Empresa**: razón
       social, RUC, direcciones, teléfono.
 - [ ] Logotipo cargado.
@@ -421,3 +485,14 @@ En orden de lo que más valor agrega:
 5. **Mejora de la vista 3D de la bodega**, para que se parezca a una
    visualización de racks y pasillos de verdad.
 6. **Contabilidad y ATS.**
+
+---
+
+## 9. Por qué PostgreSQL y no Firebase
+
+La pregunta está respondida con números en
+[`ANALISIS_BASE_DE_DATOS.md`](ANALISIS_BASE_DE_DATOS.md). El resumen: 55
+funciones, 26 triggers y 53 políticas de seguridad viven dentro de la base a
+propósito, y Firestore no tiene dónde ponerlas. Además, sobre Supabase la base
+se abre desde DBeaver o pgAdmin como cualquier PostgreSQL; sobre Firebase, no
+existe esa posibilidad.

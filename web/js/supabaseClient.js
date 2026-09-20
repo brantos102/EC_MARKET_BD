@@ -3,9 +3,14 @@
 // para que la app no dependa de terceros ni de que el navegador del usuario
 // tenga salida a internet hacia un CDN.
 const { createClient } = window.supabase;
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+import { conexionActual } from './lib/conexion.js';
+
+// La conexión sale de lo que se haya configurado en esta instalación y,
+// si no hay nada configurado, de config.js. Ver lib/conexion.js.
+const { url, anonKey } = conexionActual();
+
+export const supabase = createClient(url, anonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,

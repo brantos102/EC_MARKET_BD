@@ -22,8 +22,29 @@
       <input type="password" id="login-password" required autocomplete="current-password" />
       <button type="submit">Ingresar</button>
       <p id="login-error" class="form-msg error"></p>
-      <p class="login-hint">El usuario se crea desde Supabase Dashboard &gt; Authentication &gt; Users (ver README.md).</p>
+      <p class="login-hint">
+        El primer usuario se crea en Supabase &gt; Authentication &gt; Users; desde ahí
+        los demás se crean en Administración (ver PUBLICACION.md).
+      </p>
+      <button type="button" id="btn-conexion" class="enlace-sobrio">
+        Configurar la conexión a la base
+      </button>
     </form>
+  </div>
+
+  <!-- Pantalla de conexión y asistente de instalación. Ocupa toda la
+       ventana porque mientras se instala no hay menú ni sesión que
+       mostrar al lado. -->
+  <div id="instalador-screen" class="instalador-screen hidden">
+    <div class="inst-cabecera">
+      <img src="img/logo-menu.png" alt="" class="inst-logo" />
+      <div>
+        <strong id="inst-titulo">Instalación del sistema</strong>
+        <span id="inst-subtitulo">Centro de Control</span>
+      </div>
+      <button type="button" id="inst-salir" class="enlace-sobrio hidden">Salir</button>
+    </div>
+    <div id="instalador-contenido"></div>
   </div>
 
   <!-- Shell principal -->

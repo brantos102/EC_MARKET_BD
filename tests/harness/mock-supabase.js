@@ -10,6 +10,11 @@
 
   const BODEGA = 'bod-1';
 
+  // Las pruebas del asistente necesitan una base "recién migrada". En vez
+  // de mantener dos copias del simulador, se pide con ?instalar=1 en la
+  // dirección y esta misma copia responde como si nada estuviera instalado.
+  const SIN_INSTALAR = new URLSearchParams(location.search).has('instalar');
+
   const DATOS = {
     bodegas: [{ id: BODEGA, nombre: 'Bodega Principal', activa: true }],
     clientes: [
@@ -40,6 +45,38 @@
         created_at: '2026-09-10T10:00:00Z' },
     ],
     tokens_autorizacion: [],
+    instalacion: [
+      { id: true, completada: true, tipo_negocio: 'MARKET', version_sistema: '011' },
+    ],
+    tipos_negocio: [
+      { codigo: 'MARKET', nombre: 'Minimarket / Tienda de abarrotes',
+        descripcion: 'Víveres, frutas y verduras, lácteos, snacks y bebidas.',
+        icono: 'carrito', orden: 10, activo: true,
+        unidades: ['UND','LB','KG','ARROBA','QUINTAL','LT'],
+        categorias: ['Frutas','Verduras y hortalizas','Abarrotes','Bebidas'],
+        zonas: [{ codigo: 'PER', nombre: 'Perecibles', conservacion: 'REFRIGERADO' }],
+        maneja_caducidad: true, maneja_peso: true },
+      { codigo: 'FERRETERIA', nombre: 'Ferretería',
+        descripcion: 'Herramientas, materiales de construcción, pinturas y eléctricos.',
+        icono: 'ajuste', orden: 20, activo: true,
+        unidades: ['UND','METRO','KG','GALON','ROLLO'],
+        categorias: ['Herramienta manual','Tornillería y fijación','Plomería'],
+        zonas: [{ codigo: 'HER', nombre: 'Herramientas', conservacion: 'AMBIENTE' }],
+        maneja_caducidad: false, maneja_peso: true },
+      { codigo: 'FARMACIA', nombre: 'Farmacia / Botica',
+        descripcion: 'Medicamentos y cuidado personal, con lote y caducidad obligatorios.',
+        icono: 'escudo', orden: 30, activo: true,
+        unidades: ['UND','CAJA','BLISTER','ML'],
+        categorias: ['Analgésicos','Antibióticos','Cuidado personal'],
+        zonas: [{ codigo: 'MED', nombre: 'Medicamentos', conservacion: 'AMBIENTE' }],
+        maneja_caducidad: true, maneja_peso: false },
+      { codigo: 'OTRO', nombre: 'Otro tipo de negocio',
+        descripcion: 'Arranca con lo mínimo y usted define todo desde Catálogo.',
+        icono: 'caja', orden: 90, activo: true,
+        unidades: ['UND','CAJA','PAQUETE'], categorias: [],
+        zonas: [{ codigo: 'GEN', nombre: 'General', conservacion: 'AMBIENTE' }],
+        maneja_caducidad: false, maneja_peso: false },
+    ],
     sedes: [
       { id: 'sede-1', codigo: '001', nombre: 'Matriz', direccion: 'Quito',
         telefono: '02-2000000', punto_emision: '001', es_matriz: true, activa: true },
@@ -115,8 +152,10 @@
         email: 'market@prueba.ec', establecimiento: '001', punto_emision: '001',
         ambiente: 'PRUEBAS', tipo_negocio: 'MARKET', obligado_contabilidad: false,
         pie_recibo: 'Frescura y calidad en cada compra', color_primario: '#17803A',
-        logo_url: null, deuna_qr_url: null, deuna_titular: null,
-        deuna_telefono: null, deuna_activo: false },
+        logo_url: null, deuna_qr_url: null, deuna_qr_mime: null, deuna_qr_nombre: null,
+        deuna_titular: null, deuna_telefono: null, deuna_activo: false,
+        deuna_modo: 'QR_ESTATICO', deuna_comercio_id: null, deuna_api_base: null,
+        deuna_instrucciones: 'Escanee el código con la app De Una y envíe el valor indicado en pantalla.' },
     ],
     v_stock_actual: [
       {
@@ -437,6 +476,43 @@
     if (nombre === 'fn_mi_perfil') {
       return { data: [{ usuario_id: 'u-1', nombre: 'prueba@itsanet.com', rol: 'ADMIN',
                         bodega_id: BODEGA, tipo_negocio: 'MARKET' }], error: null };
+    }
+    if (nombre === 'fn_estado_instalacion') {
+      return {
+        data: [{
+          completada: !SIN_INSTALAR,
+          tipo_negocio: SIN_INSTALAR ? null : 'MARKET',
+          hay_usuarios: true,
+        }],
+        error: null,
+      };
+    }
+    if (nombre === 'fn_completar_instalacion') {
+      window.__ESCRITURAS.push({ tabla: 'rpc:fn_completar_instalacion', operacion: 'rpc', payload: args });
+      const t = DATOS.tipos_negocio.find((x) => x.codigo === args.p_tipo_negocio);
+      return {
+        data: {
+          ok: true,
+          tipo_negocio: args.p_tipo_negocio,
+          unidades_activas: t?.unidades.length ?? 0,
+          categorias_creadas: t?.categorias.length ?? 0,
+          zonas_creadas: (t?.zonas ?? []).length,
+          sede_id: 'sede-1',
+        },
+        error: null,
+      };
+    }
+    if (nombre === 'fn_config_deuna') {
+      const e = DATOS.empresa[0];
+      return {
+        data: [{
+          activo: e.deuna_activo, modo: e.deuna_modo ?? 'QR_ESTATICO',
+          qr_url: e.deuna_qr_url, qr_mime: e.deuna_qr_mime,
+          titular: e.deuna_titular, telefono: e.deuna_telefono,
+          instrucciones: e.deuna_instrucciones,
+        }],
+        error: null,
+      };
     }
     if (nombre === 'fn_mi_perfil_completo') {
       return { data: [{ usuario_id: 'u-1', nombre: 'prueba@itsanet.com', rol: 'ADMIN',

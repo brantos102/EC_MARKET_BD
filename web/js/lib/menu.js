@@ -104,13 +104,18 @@ export async function construirMenu(destino) {
         <span class="nav-grupo-cuenta">${items.length}</span>
         ${flecha()}
       </button>
+      <!-- El plegado usa una rejilla de UNA fila que pasa de 0fr a 1fr.
+           Por eso todos los enlaces van dentro de un único hijo: con varios
+           hijos, 0fr solo encogía el primero y el grupo nunca se cerraba. -->
       <div class="nav-submenu">
-        ${items.map((m) => `
-          <a href="#${m.codigo}" class="nav-link ${m.codigo === 'pos' ? 'destacado' : ''}"
-             title="${escapar(m.descripcion ?? m.nombre)}">
-            ${icono(m.icono ?? 'punto')}
-            <span class="nav-texto">${escapar(m.nombre)}</span>
-          </a>`).join('')}
+        <div class="nav-submenu-interior">
+          ${items.map((m) => `
+            <a href="#${m.codigo}" class="nav-link ${m.codigo === 'pos' ? 'destacado' : ''}"
+               title="${escapar(m.descripcion ?? m.nombre)}">
+              ${icono(m.icono ?? 'punto')}
+              <span class="nav-texto">${escapar(m.nombre)}</span>
+            </a>`).join('')}
+        </div>
       </div>
     </section>`).join('');
 
@@ -121,12 +126,28 @@ export async function construirMenu(destino) {
       const seAbre = !bloque.classList.contains('abierto');
       bloque.classList.toggle('abierto', seAbre);
       btn.setAttribute('aria-expanded', String(seAbre));
+      sincronizarFoco(bloque);
       if (seAbre) abiertos.add(grupo); else abiertos.delete(grupo);
       guardarAbiertos(abiertos);
     });
   });
 
+  destino.querySelectorAll('.nav-grupo-bloque').forEach(sincronizarFoco);
   marcarActivo();
+}
+
+/**
+ * Un enlace dentro de un grupo cerrado no se ve, así que tampoco debe
+ * recibir el foco al tabular: de lo contrario el cursor se va a un
+ * enlace invisible y el usuario no entiende dónde quedó.
+ */
+function sincronizarFoco(bloque) {
+  const cerrado = !bloque.classList.contains('abierto');
+  bloque.querySelectorAll('.nav-link').forEach((a) => {
+    if (cerrado) a.setAttribute('tabindex', '-1');
+    else a.removeAttribute('tabindex');
+  });
+  bloque.querySelector('.nav-submenu')?.setAttribute('aria-hidden', String(cerrado));
 }
 
 /**
@@ -143,6 +164,7 @@ export function marcarActivo() {
       if (bloque && !bloque.classList.contains('abierto')) {
         bloque.classList.add('abierto');
         bloque.querySelector('.nav-grupo-btn')?.setAttribute('aria-expanded', 'true');
+        sincronizarFoco(bloque);
       }
     }
   });

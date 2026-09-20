@@ -108,3 +108,20 @@ export function redimensionarImagen(archivo, lado = 256) {
     lector.readAsDataURL(archivo);
   });
 }
+
+/**
+ * Lee un archivo tal cual y lo devuelve como data URI, sin tocarlo.
+ *
+ * Se usa para el PDF del código de cobro: recomprimirlo no aportaría
+ * nada y convertirlo a imagen exigiría una librería de PDF que esta
+ * aplicación no carga a propósito, para que la caja siga abriendo sin
+ * internet.
+ */
+export function leerComoDataUri(archivo) {
+  return new Promise((resolve, reject) => {
+    const lector = new FileReader();
+    lector.onerror = () => reject(new Error('No se pudo leer el archivo'));
+    lector.onload = () => resolve(lector.result);
+    lector.readAsDataURL(archivo);
+  });
+}

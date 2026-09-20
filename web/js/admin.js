@@ -5,7 +5,7 @@ import { abrirModal, cerrarModal } from './lib/modal.js';
 import { traducirErrorSupabase } from './lib/errores.js';
 import { perfilActual, refrescarPerfil } from './lib/sesion.js';
 import { vistaSedes, vistaRoles, vistaCorreo } from './admin-config.js';
-import { refrescarMarca, redimensionarImagen } from './lib/marca.js';
+import { refrescarMarca, redimensionarImagen, leerComoDataUri } from './lib/marca.js';
 
 export async function renderAdmin(container) {
   const perfil = await perfilActual();
@@ -435,27 +435,72 @@ async function vistaEmpresa(destino) {
 
         <div class="ancho-completo bloque-logo">
           <h4>Cobro con De Una!</h4>
-          <p class="nota">Descargue su QR de cobro desde la banca en línea del Banco
-          Pichincha (Cobros → Mi QR) y cárguelo aquí. La caja lo muestra a pantalla
-          completa al elegir De Una como forma de pago.</p>
+          <p class="nota">Descargue su código de cobro desde la banca en línea del
+          Banco Pichincha (Cobros → Mi QR) y cárguelo aquí, tal como venga:
+          <b>PNG, JPG o el PDF</b> que entrega el banco. La caja lo muestra en grande
+          al elegir De Una como forma de pago.</p>
+          <p class="nota">Un archivo de Word no sirve para esto: el navegador no lo
+          puede dibujar en pantalla. Si solo tiene el QR dentro de un .docx, ábralo,
+          haga clic derecho sobre la imagen y guárdela como PNG.</p>
+
           <div class="logo-editor">
-            <img id="deuna-previa" class="logo-previa ${e.deuna_qr_url ? '' : 'hidden'}"
-                 src="${e.deuna_qr_url || ''}" alt="QR de cobro De Una" />
+            <div id="deuna-previa-caja" class="deuna-previa-caja ${e.deuna_qr_url ? '' : 'hidden'}"></div>
             <div class="logo-controles">
-              <input type="file" id="deuna-archivo" accept="image/png,image/jpeg,image/webp" />
+              <input type="file" id="deuna-archivo"
+                     accept="image/png,image/jpeg,image/webp,image/svg+xml,application/pdf" />
+              <button type="button" class="btn-secundario" id="deuna-quitar">Quitar el código</button>
               <span id="deuna-msg" class="form-msg"></span>
             </div>
           </div>
+
           <input type="hidden" name="deuna_qr_url" id="deuna-url" value="${v(e.deuna_qr_url)}" />
+          <input type="hidden" name="deuna_qr_mime" id="deuna-mime" value="${v(e.deuna_qr_mime)}" />
+          <input type="hidden" name="deuna_qr_nombre" id="deuna-nombre" value="${v(e.deuna_qr_nombre)}" />
+
           <label>Titular de la cuenta De Una
             <input name="deuna_titular" value="${v(e.deuna_titular)}" />
           </label>
           <label>Teléfono asociado
             <input name="deuna_telefono" value="${v(e.deuna_telefono)}" />
           </label>
+          <label class="ancho-completo">Instrucción que lee el cajero al cliente
+            <input name="deuna_instrucciones" value="${v(e.deuna_instrucciones)}"
+                   placeholder="Escanee el código y envíe el valor indicado en pantalla." />
+          </label>
+
+          <label>Modo de cobro
+            <select name="deuna_modo" id="deuna-modo">
+              <option value="QR_ESTATICO" ${e.deuna_modo !== 'API_TOKEN' ? 'selected' : ''}>
+                QR fijo — el cliente digita el monto
+              </option>
+              <option value="API_TOKEN" ${e.deuna_modo === 'API_TOKEN' ? 'selected' : ''}>
+                API con token — el QR lleva el monto (requiere contrato)
+              </option>
+            </select>
+          </label>
           <label>Mostrar De Una en la caja
             <input type="checkbox" name="deuna_activo" ${e.deuna_activo ? 'checked' : ''} />
           </label>
+
+          <div class="ancho-completo" id="deuna-api" ${e.deuna_modo === 'API_TOKEN' ? '' : 'hidden'}>
+            <div class="aviso-migracion">
+              <b>El modo con API todavía no está conectado.</b>
+              <p class="nota">Cuando el Banco Pichincha le habilite el servicio, el QR
+              llevará el monto incluido y un aviso del banco marcará la venta como
+              pagada sola, sin que el cajero anote nada. Hasta entonces la caja sigue
+              funcionando con el QR fijo aunque deje este modo elegido.</p>
+              <p class="nota">La clave del API <b>no se guarda aquí</b>: va como secreto
+              en el servidor. Si estuviera en esta pantalla, cualquiera que abra el
+              código fuente de la página podría cobrar a nombre del negocio.</p>
+              <label>Identificador de comercio
+                <input name="deuna_comercio_id" value="${v(e.deuna_comercio_id)}" />
+              </label>
+              <label>Dirección del servicio
+                <input name="deuna_api_base" value="${v(e.deuna_api_base)}"
+                       placeholder="https://api.deuna.com" />
+              </label>
+            </div>
+          </div>
         </div>
 
         <div class="ancho-completo">
@@ -494,29 +539,80 @@ async function vistaEmpresa(destino) {
     logoMsg.className = 'form-msg';
   });
 
-  // ---- Carga del QR de De Una ----
+  // ---- Modo de cobro ----
+  destino.querySelector('#deuna-modo')?.addEventListener('change', (ev) => {
+    destino.querySelector('#deuna-api').hidden = ev.target.value !== 'API_TOKEN';
+  });
+
+  // ---- Carga del código de cobro De Una ----
   const deunaUrl = destino.querySelector('#deuna-url');
-  const deunaPrevia = destino.querySelector('#deuna-previa');
+  const deunaMime = destino.querySelector('#deuna-mime');
+  const deunaNombre = destino.querySelector('#deuna-nombre');
+  const deunaCaja = destino.querySelector('#deuna-previa-caja');
   const deunaMsg = destino.querySelector('#deuna-msg');
+
+  function pintarPreviaDeuna(url, mime) {
+    if (!url) {
+      deunaCaja.innerHTML = '';
+      deunaCaja.classList.add('hidden');
+      return;
+    }
+    deunaCaja.classList.remove('hidden');
+    deunaCaja.innerHTML = mime === 'application/pdf'
+      ? `<embed src="${url}#toolbar=0&navpanes=0" type="application/pdf" class="deuna-previa-pdf" />`
+      : `<img src="${url}" alt="Código de cobro De Una" class="logo-previa" />`;
+  }
+
+  pintarPreviaDeuna(e.deuna_qr_url, e.deuna_qr_mime);
 
   destino.querySelector('#deuna-archivo').addEventListener('change', async (ev) => {
     const archivo = ev.target.files?.[0];
     if (!archivo) return;
     deunaMsg.textContent = 'Procesando…';
     deunaMsg.className = 'form-msg';
+
     try {
-      // El QR se guarda más grande: si se reduce demasiado, el lector del
-      // teléfono deja de distinguir los módulos y no escanea.
-      const dataUri = await redimensionarImagen(archivo, 512);
+      let dataUri;
+
+      if (archivo.type === 'application/pdf') {
+        // El PDF se guarda tal cual: recomprimirlo no tendría sentido y
+        // el navegador lo dibuja sin ayuda. Solo se vigila el tamaño,
+        // porque este archivo viaja en cada carga de la aplicación.
+        if (archivo.size > 900 * 1024) {
+          throw new Error(
+            `El PDF pesa ${Math.round(archivo.size / 1024)} KB y el límite práctico es 900 KB. ` +
+            'Abra el PDF, recorte solo el código y guárdelo como PNG: pesa mucho menos y ' +
+            'se ve igual de bien en la caja.');
+        }
+        dataUri = await leerComoDataUri(archivo);
+        deunaMime.value = 'application/pdf';
+      } else {
+        // A 512 px el lector del teléfono distingue bien los módulos del
+        // código; más pequeño empieza a fallar el escaneo.
+        dataUri = await redimensionarImagen(archivo, 512);
+        deunaMime.value = 'image/png';
+      }
+
       deunaUrl.value = dataUri;
-      deunaPrevia.src = dataUri;
-      deunaPrevia.classList.remove('hidden');
-      deunaMsg.textContent = 'QR cargado. Pulse Guardar.';
+      deunaNombre.value = archivo.name;
+      pintarPreviaDeuna(dataUri, deunaMime.value);
+      deunaMsg.textContent =
+        `Código cargado (${Math.round(dataUri.length / 1024)} KB). Pulse Guardar para aplicarlo.`;
       deunaMsg.className = 'form-msg ok';
+
     } catch (err) {
       deunaMsg.textContent = err.message;
       deunaMsg.className = 'form-msg error';
     }
+  });
+
+  destino.querySelector('#deuna-quitar').addEventListener('click', () => {
+    deunaUrl.value = '';
+    deunaMime.value = '';
+    deunaNombre.value = '';
+    pintarPreviaDeuna(null);
+    deunaMsg.textContent = 'Se quitará el código al guardar.';
+    deunaMsg.className = 'form-msg';
   });
 
   destino.querySelector('#form-empresa').addEventListener('submit', async (ev) => {

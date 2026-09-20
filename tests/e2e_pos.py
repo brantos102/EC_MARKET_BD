@@ -144,21 +144,35 @@ with sync_playwright() as p:
     revisar("se rechaza el efectivo que no cubre el total",
             "no cubre" in msg_pago, f"(dice '{msg_pago}')")
 
-    print("\n--- Transferencia De Una exige código")
-    pagina.click("button[data-forma='TRANSFERENCIA_DEUNA']")
-    pagina.wait_for_timeout(200)
-    revisar("aparece el campo de código de comprobante",
-            pagina.is_visible("#pago-codigo-input"))
-    etiqueta = pagina.inner_text("#pago-codigo-label")
-    revisar("la etiqueta se adapta a De Una", "De Una" in etiqueta, f"(dice '{etiqueta}')")
+    print("\n--- Tarjeta y transferencia bancaria sí exigen el voucher")
+    # Ahí el papel existe en el momento del cobro, y es lo que permite
+    # cuadrar la caja al cierre.
+    pagina.click("button[data-forma='TARJETA_DEBITO']")
+    pagina.wait_for_timeout(250)
+    revisar("aparece el campo del voucher", pagina.is_visible("#pago-codigo-input"))
     pagina.click("#btn-confirmar-pago")
-    pagina.wait_for_timeout(200)
-    revisar("se rechaza la transferencia sin código",
-            "código" in pagina.inner_text("#pago-msg").lower())
+    pagina.wait_for_timeout(250)
+    revisar("se rechaza la tarjeta sin número de voucher",
+            "voucher" in pagina.inner_text("#pago-msg").lower(),
+            f"(dice '{pagina.inner_text('#pago-msg')}')")
+
+    print("\n--- De Una NO exige código: es una transferencia")
+    # El cliente escanea el QR y envía el monto pactado de viva voz. No
+    # hay token ni comprobante que el sistema pueda comprobar, así que
+    # exigir uno solo frenaba la caja.
+    pagina.click("button[data-forma='TRANSFERENCIA_DEUNA']")
+    pagina.wait_for_timeout(300)
+    revisar("se muestra el panel del QR y no el del voucher",
+            pagina.is_visible("#pago-deuna") and not pagina.is_visible("#pago-codigo-input"))
+    revisar("el monto a transferir se muestra en grande",
+            "$" in pagina.inner_text(".deuna-monto"))
+    revisar("la referencia se ofrece como opcional",
+            "opcional" in pagina.inner_text(".deuna-ref").lower())
+    revisar("se explica qué hacer si no hay QR cargado",
+            "Administración" in pagina.inner_text("#deuna-nota"))
 
     # ---------------------------------------------------------
-    print("\n--- Venta completa con código de transferencia")
-    pagina.fill("#pago-codigo-input", "DEUNA-99887766")
+    print("\n--- Venta completa cobrada con De Una")
     pagina.click("#btn-confirmar-pago")
     pagina.wait_for_timeout(900)
 
@@ -173,8 +187,11 @@ with sync_playwright() as p:
         fila = pago["payload"][0] if isinstance(pago["payload"], list) else pago["payload"]
         revisar("el pago guarda la forma De Una",
                 fila.get("forma_pago") == "TRANSFERENCIA_DEUNA", f"({fila.get('forma_pago')})")
-        revisar("el pago guarda el código de la transacción",
-                fila.get("codigo_transaccion") == "DEUNA-99887766")
+        revisar("la venta se cerró sin obligar a inventar un código",
+                fila.get("codigo_transaccion") in (None, ""),
+                f"(guardó '{fila.get('codigo_transaccion')}')")
+        revisar("y deja constancia de que el cobro fue por De Una",
+                "De Una" in (fila.get("banco") or ""), f"({fila.get('banco')})")
 
     confirmacion = next(
         (e for e in escrituras if e["tabla"] == "ventas" and e["operacion"] == "update"), None
@@ -615,20 +632,80 @@ with sync_playwright() as p:
             pagina.eval_on_selector_all(".nav-grupo-cuenta", "els => els.length") >= 2)
 
     grupo = ".nav-grupo-bloque:first-child"
-    abierto_antes = pagina.eval_on_selector(grupo, "el => el.classList.contains('abierto')")
-    pagina.click(f"{grupo} .nav-grupo-btn")
-    pagina.wait_for_timeout(350)
-    revisar("al pulsar el grupo se pliega o despliega",
-            pagina.eval_on_selector(grupo, "el => el.classList.contains('abierto')")
-            != abierto_antes)
-    revisar("el estado del grupo queda anunciado para lectores de pantalla",
-            pagina.eval_on_selector(
-                f"{grupo} .nav-grupo-btn",
-                "el => el.getAttribute('aria-expanded') === String(el.closest('.nav-grupo-bloque').classList.contains('abierto'))"))
 
-    # Un módulo activo no puede quedar escondido dentro de un grupo plegado
+    def alto_submenu():
+        """Alto real del submenú. Es la única medida honesta del plegado:
+        los enlaces siguen teniendo su propio alto aunque el contenedor
+        los recorte, así que preguntar por el enlace engañaría."""
+        return pagina.eval_on_selector(
+            f"{grupo} .nav-submenu",
+            "el => Math.round(el.getBoundingClientRect().height)")
+
+    # Se parte siempre de abierto para que la prueba no dependa de lo que
+    # quedó guardado de una corrida anterior.
+    if not pagina.eval_on_selector(grupo, "el => el.classList.contains('abierto')"):
+        pagina.click(f"{grupo} .nav-grupo-btn")
+        pagina.wait_for_timeout(400)
+
+    alto_abierto = alto_submenu()
+    revisar("un grupo abierto muestra sus módulos", alto_abierto > 20,
+            f"(alto {alto_abierto}px)")
+
     pagina.click(f"{grupo} .nav-grupo-btn")
-    pagina.wait_for_timeout(250)
+    pagina.wait_for_timeout(450)
+    alto_cerrado = alto_submenu()
+    revisar("al pulsar el grupo se contrae del todo", alto_cerrado == 0,
+            f"(alto {alto_cerrado}px, debería ser 0)")
+    revisar("un grupo contraído se marca como oculto para lectores de pantalla",
+            pagina.eval_on_selector(f"{grupo} .nav-submenu",
+                                    "el => el.getAttribute('aria-hidden') === 'true'"))
+    revisar("sus enlaces salen del recorrido con Tab",
+            pagina.eval_on_selector_all(
+                f"{grupo} .nav-link",
+                "els => els.length > 0 && els.every(a => a.getAttribute('tabindex') === '-1')"))
+    revisar("el botón anuncia que está contraído",
+            pagina.eval_on_selector(f"{grupo} .nav-grupo-btn",
+                                    "el => el.getAttribute('aria-expanded') === 'false'"))
+
+    pagina.click(f"{grupo} .nav-grupo-btn")
+    pagina.wait_for_timeout(450)
+    revisar("al volver a pulsarlo se despliega otra vez",
+            alto_submenu() == alto_abierto,
+            f"(alto {alto_submenu()}px, antes {alto_abierto}px)")
+    revisar("y sus enlaces vuelven al recorrido con Tab",
+            pagina.eval_on_selector_all(
+                f"{grupo} .nav-link",
+                "els => els.every(a => !a.hasAttribute('tabindex'))"))
+
+    # Lo que el usuario deja plegado tiene que seguir plegado al volver.
+    # Se usa el último grupo y no el primero porque el módulo abierto
+    # (#dashboard) vive en el primero, y un grupo con el módulo activo
+    # dentro se despliega solo a propósito.
+    otro = ".nav-grupo-bloque:last-child"
+    pagina.evaluate("location.hash = '#dashboard'")
+    pagina.wait_for_timeout(300)
+    if pagina.eval_on_selector(otro, "el => el.classList.contains('abierto')"):
+        pagina.click(f"{otro} .nav-grupo-btn")
+        pagina.wait_for_timeout(400)
+
+    pagina.reload(wait_until="networkidle")
+    pagina.wait_for_selector(".nav-grupo-bloque", timeout=8000)
+    pagina.wait_for_timeout(700)
+    revisar("el menú recuerda qué grupos quedaron plegados",
+            not pagina.eval_on_selector(otro, "el => el.classList.contains('abierto')"))
+
+    # Un módulo activo no puede quedar escondido dentro de un grupo plegado.
+    modulo_oculto = pagina.eval_on_selector(
+        f"{otro} .nav-link", "el => el.getAttribute('href')")
+    pagina.evaluate(f"location.hash = '{modulo_oculto}'")
+    pagina.wait_for_timeout(700)
+    revisar("abrir un módulo de un grupo plegado despliega ese grupo",
+            pagina.eval_on_selector(otro, "el => el.classList.contains('abierto')"))
+    revisar("y el módulo queda resaltado en el menú",
+            pagina.eval_on_selector(
+                f'.nav-modulos .nav-link[href="{modulo_oculto}"]',
+                "el => el.classList.contains('active')"))
+
     revisar("la sede de la sesión aparece en la cabecera del menú",
             "Matriz" in pagina.text_content("#sede-actual"))
 
@@ -732,8 +809,9 @@ with sync_playwright() as p:
             pagina.is_visible("#pago-deuna"))
     revisar("si no hay QR cargado se dice qué hacer",
             "Administración" in pagina.inner_text("#deuna-nota"))
-    revisar("igual se puede cobrar anotando el código de la transacción",
-            pagina.is_visible("#pago-codigo-input"))
+    revisar("la referencia queda como campo opcional, no obligatorio",
+            pagina.is_visible("#deuna-referencia")
+            and not pagina.is_visible("#pago-codigo-input"))
     pagina.click(".modal-cerrar")
     pagina.wait_for_timeout(300)
 
