@@ -30,4 +30,5 @@ aplicar db/008_roles_seguridad.sql
 aplicar db/009_comprobantes_clientes.sql
 aplicar db/010_operacion_multisede.sql
 aplicar db/011_instalacion_deuna.sql
-echo "OK — migraciones 001-011 aplicadas sin error"
+aplicar db/012_estructuras_servicios.sql
+echo "OK — migraciones 001-012 aplicadas sin error"

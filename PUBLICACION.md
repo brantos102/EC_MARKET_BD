@@ -434,8 +434,11 @@ firma del contribuyente.
 
 **Base de datos**
 
-- [ ] Migraciones `db/*.sql` aplicadas en orden hasta `011`.
-- [ ] `db/tests_010.sql` y `db/tests_011.sql` corren sin errores.
+- [ ] Migraciones `db/*.sql` aplicadas en orden hasta `012`.
+- [ ] `db/tests_010.sql`, `011` y `012` corren sin errores.
+- [ ] Muebles del local dados de alta en **Mapa del local → Estructuras**,
+      con sus columnas y niveles reales.
+- [ ] Productos ubicados: cada uno en su posición `NAVE-MUEBLE-COLUMNA-NIVEL`.
 - [ ] Asistente de instalación completado con el tipo de negocio correcto.
       Revíselo dos veces: es lo único que no se puede corregir después.
 - [ ] Datos de la empresa completos en **Administración → Empresa**: razón
@@ -478,17 +481,48 @@ En orden de lo que más valor agrega:
 1. **Facturación electrónica ante el SRI.** Requiere el certificado de firma
    electrónica del contribuyente. Es lo que convierte el comprobante en un
    documento válido.
-2. **Exportación de reportes** a Excel, PDF y CSV con el logotipo.
-3. **API de De Una**, si el QR estático demuestra que el volumen lo justifica.
-4. **Traslados entre ubicaciones desde la interfaz.** La función
+2. **API de De Una**, si el QR estático demuestra que el volumen lo justifica.
+3. **Traslados entre ubicaciones desde la interfaz.** La función
    `fn_transferir_ubicacion` ya existe en la base; falta la pantalla.
-5. **Mejora de la vista 3D de la bodega**, para que se parezca a una
-   visualización de racks y pasillos de verdad.
-6. **Contabilidad y ATS.**
+4. **Contabilidad y ATS.**
+5. **Puente con las hojas de cálculo del contador**, que es donde Apps Script
+   sí rinde (ver `ANALISIS_PUBLICACION.md`).
 
 ---
 
-## 9. Por qué PostgreSQL y no Firebase
+## 9. Cómo se nombran las ubicaciones
+
+El código de una posición se lee de izquierda a derecha:
+
+```
+ECM - A - 01 - 1
+ │    │    │   └── nivel (de abajo hacia arriba)
+ │    │    └────── columna, a dos dígitos
+ │    └─────────── mueble
+ └──────────────── nave (código de la sede)
+```
+
+`ECM-A-01-1` es el nivel 1 de la primera columna de la estantería A en la
+matriz. `ECM-FR1-01-1` es lo mismo en el primer frigorífico.
+
+Los literales se asignan solos: las estanterías toman la siguiente letra libre
+(A, B, C…) y los frigoríficos, neveras y mostradores el siguiente número de su
+prefijo (FR1, FR2, NV1, MO1). El sistema crece en las tres direcciones —más
+muebles, más columnas, más niveles— desde **Mapa del local → Estructuras**, sin
+tocar código.
+
+Encoger un mueble solo se permite si las posiciones que desaparecen están
+vacías. Si alguna tiene producto, el sistema dice cuál y no borra nada: perder
+en silencio la ubicación de veinte productos es el peor error posible en un
+inventario.
+
+La columna va a dos dígitos a propósito. Con un solo dígito, ordenar
+alfabéticamente pondría `ECM-A-10-1` antes que `ECM-A-2-1`, y las listas
+saldrían desordenadas en todos los reportes.
+
+---
+
+## 10. Por qué PostgreSQL y no Firebase
 
 La pregunta está respondida con números en
 [`ANALISIS_BASE_DE_DATOS.md`](ANALISIS_BASE_DE_DATOS.md). El resumen: 55

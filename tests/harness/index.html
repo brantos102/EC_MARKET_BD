@@ -49,8 +49,22 @@
 
   <!-- Shell principal -->
   <div id="app-shell" class="app-shell hidden">
+    <!-- Barra superior: solo se ve en pantallas angostas. En el celular
+         el menú lateral no cabe al lado del contenido, así que se
+         convierte en un cajón que se abre con este botón. -->
+    <header class="barra-movil">
+      <button type="button" id="btn-menu" class="btn-menu" aria-label="Abrir el menú"
+              aria-expanded="false" aria-controls="sidebar">
+        <span></span><span></span><span></span>
+      </button>
+      <img src="../../web/img/logo-menu.png" alt="" class="barra-logo" />
+      <span id="titulo-movil" class="barra-titulo">Dashboard</span>
+    </header>
+
+    <div id="velo-menu" class="velo-menu hidden"></div>
+
     <!-- Menú lateral fijo -->
-    <nav class="sidebar">
+    <nav class="sidebar" id="sidebar">
       <div class="sidebar-header">
         <img src="../../web/img/logo-menu.png" alt="Minimarket El Cultivo" class="logo-menu" />
         <span class="lema">Frescura y calidad en cada compra</span>

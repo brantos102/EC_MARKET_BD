@@ -9,6 +9,7 @@ import { abrirSelectorCliente } from './lib/cliente-venta.js';
 import { imprimirComprobante } from './lib/comprobante.js';
 import { paso, formatear, fracciona, sumarPaso, decimales } from './lib/cantidad.js';
 import { empresaActual } from './lib/marca.js';
+import { abrirQRDeUna } from './lib/qr-deuna.js';
 import {
   configurar, fijarTipoVenta, agregar, cambiarCantidad, vaciar,
   lineasCalculadas, totales, obtenerEstado, actualizarStock, suscribir, reiniciarCliente,
@@ -645,6 +646,9 @@ function abrirModalPago(total, onConfirmar) {
           <div class="deuna-datos">
             <p class="deuna-etiqueta">El cliente debe enviar</p>
             <p class="deuna-monto"><b>$${total.toFixed(2)}</b></p>
+            <button type="button" id="deuna-ampliar" class="btn-primary btn-ampliar">
+              Mostrar el código en grande
+            </button>
             <p class="nota" id="deuna-nota"></p>
             <p class="nota" id="deuna-titular"></p>
             <label class="deuna-ref">
@@ -690,7 +694,14 @@ function abrirModalPago(total, onConfirmar) {
           modal.querySelector('#pago-deuna').classList.toggle('hidden', !esDeuna);
           modal.querySelector('#pago-codigo').classList.toggle('hidden', esEfectivo || esDeuna);
 
-          if (esDeuna) pintarDeuna(modal);
+          if (esDeuna) {
+            pintarDeuna(modal);
+            // El botón se conecta al pintarse el panel, no al abrir el
+            // modal: antes de elegir De Una todavía no existe.
+            modal.querySelector('#deuna-ampliar')?.addEventListener('click', () => {
+              abrirQRDeUna(total, () => abrirModalPago(total, onConfirmar));
+            });
+          }
           if (!esEfectivo && !esDeuna) {
             modal.querySelector('#pago-codigo-label').textContent =
               forma.startsWith('TARJETA') ? 'N.º de voucher' : 'N.º de transferencia';

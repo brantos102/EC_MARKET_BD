@@ -320,79 +320,254 @@ with sync_playwright() as p:
     revisar("el panel se cierra con su botón",
             not pagina.is_visible(".panel-flotante"))
 
-    print("\n--- Mapa del market")
+    print("\n--- Mapa del local")
     pagina.evaluate("location.hash = '#layout'")
-    pagina.wait_for_selector(".zona", timeout=8000)
-    pagina.wait_for_timeout(400)
-    revisar("dibuja las zonas del market", len(pagina.query_selector_all(".zona")) == 2)
+    pagina.wait_for_selector(".estructura-2d", timeout=8000)
+    pagina.wait_for_timeout(500)
+
+    revisar("dibuja un bloque por mueble",
+            pagina.eval_on_selector_all(".estructura-2d", "e => e.length") == 3)
+    revisar("cada mueble muestra su literal",
+            [e.inner_text() for e in pagina.query_selector_all(".estructura-literal")]
+            == ["A", "I", "FR1"])
+    revisar("el frigorífico se distingue del resto",
+            pagina.eval_on_selector_all(".estructura-2d.frio", "e => e.length") == 1)
 
     # Los conteos se comparan contra los KPI que calcula la propia aplicación:
     # así la prueba verifica que el mapa y el resumen cuentan lo mismo, en vez
     # de depender de números fijos que se rompen al cambiar los datos de prueba.
-    kpis = [int(e.inner_text()) for e in pagina.query_selector_all(".kpi-value")[:2]]
-    total_kpi = kpis[1]
-    ocupadas_kpi = int(pagina.query_selector_all(".kpi-value")[2].inner_text())
-    libres_kpi = int(pagina.query_selector_all(".kpi-value")[3].inner_text())
+    valores = [int(e.inner_text()) for e in pagina.query_selector_all(".kpi-value")]
+    muebles_kpi, total_kpi, ocupadas_kpi, libres_kpi, sinstock_kpi = valores[:5]
 
     celdas = len(pagina.query_selector_all(".celda"))
-    ocupadas_celdas = len(pagina.query_selector_all(".celda.ocupada")) + \
-                      len(pagina.query_selector_all(".celda.sin-stock"))
+    ocupadas_celdas = len(pagina.query_selector_all(".celda.ocupada"))
+    sinstock_celdas = len(pagina.query_selector_all(".celda.sin-stock"))
     libres_celdas = len(pagina.query_selector_all(".celda.vacia"))
 
-    revisar("el mapa dibuja una celda por ubicación", celdas == total_kpi,
-            f"({celdas} celdas vs {total_kpi} ubicaciones)")
-    revisar("las celdas ocupadas coinciden con el KPI", ocupadas_celdas == ocupadas_kpi,
-            f"({ocupadas_celdas} vs {ocupadas_kpi})")
-    revisar("las celdas libres coinciden con el KPI", libres_celdas == libres_kpi,
+    revisar("el mapa dibuja una celda por posición", celdas == total_kpi,
+            f"({celdas} celdas vs {total_kpi} posiciones)")
+    revisar("las ocupadas coinciden con el KPI",
+            ocupadas_celdas + sinstock_celdas == ocupadas_kpi,
+            f"({ocupadas_celdas + sinstock_celdas} vs {ocupadas_kpi})")
+    revisar("las libres coinciden con el KPI", libres_celdas == libres_kpi,
             f"({libres_celdas} vs {libres_kpi})")
+    revisar("distingue lo asignado sin stock del resto",
+            sinstock_celdas == sinstock_kpi, f"({sinstock_celdas} vs {sinstock_kpi})")
+
+    # El nivel más alto va arriba, como en la percha real
+    primera_fila = pagina.eval_on_selector(
+        ".estructura-2d .nivel-fila .nivel-etq", "el => el.textContent.trim()")
+    revisar("los niveles se dibujan de arriba hacia abajo", primera_fila == "2",
+            f"(el primero dice '{primera_fila}')")
 
     pagina.fill("#layout-buscar", "Ruffles")
     pagina.wait_for_timeout(400)
-    revisar("el buscador resalta la ubicación del producto",
+    revisar("el buscador resalta la posición del producto",
             pagina.is_visible(".celda.resaltada"))
-    revisar("muestra el código de ubicación encontrado",
-            "SNK-I-02-1" in pagina.inner_text("#layout-resultado-busqueda"))
+    revisar("muestra el código estándar de la posición",
+            "ECM-I-01-1" in pagina.inner_text("#layout-resultado-busqueda"),
+            f"(dice '{pagina.inner_text('#layout-resultado-busqueda')[:60]}')")
+
+    # Buscar por el propio código de posición también tiene que funcionar:
+    # es lo que hace el bodeguero con la etiqueta de la percha en la mano.
+    pagina.fill("#layout-buscar", "ECM-FR1")
+    pagina.wait_for_timeout(400)
+    revisar("se puede buscar por código de posición",
+            len(pagina.query_selector_all(".chip-ubicacion")) == 4,
+            f"({len(pagina.query_selector_all('.chip-ubicacion'))} posiciones)")
+    pagina.fill("#layout-buscar", "")
+    pagina.wait_for_timeout(300)
 
     pagina.click(".celda.ocupada")
     pagina.wait_for_selector(".modal", timeout=5000)
-    revisar("al hacer clic en una celda abre el detalle con sus lotes",
+    pagina.wait_for_timeout(500)
+    revisar("al hacer clic en una posición abre su detalle",
+            "ECM-A-01-1" in pagina.inner_text(".modal-head"))
+    revisar("el detalle muestra los lotes del producto",
             "Lotes disponibles" in pagina.inner_text(".modal"))
     pagina.click(".modal-cerrar")
     pagina.wait_for_timeout(200)
 
-    print("\n--- Vista 3D del layout")
+    print("\n--- Vista 3D con three.js")
     pagina.click('.tab[data-v="tresd"]')
-    pagina.wait_for_selector(".caja-3d", timeout=6000)
-    revisar("dibuja las cajas en perspectiva 3D",
-            len(pagina.query_selector_all(".caja-3d")) >= 2)
-    transform_antes = pagina.eval_on_selector("#mundo", "el => el.style.transform")
-    pagina.eval_on_selector("#rot-y", "el => { el.value = 40; el.dispatchEvent(new Event('input')); }")
-    pagina.wait_for_timeout(300)
-    transform_despues = pagina.eval_on_selector("#mundo", "el => el.style.transform")
-    revisar("el control de giro rota la escena", transform_antes != transform_despues)
+    pagina.wait_for_selector("#lienzo-3d canvas", timeout=15000)
+    pagina.wait_for_timeout(2500)
 
-    print("\n--- Tabla de posiciones")
+    revisar("dibuja la escena con WebGL",
+            pagina.eval_on_selector_all("#lienzo-3d canvas", "e => e.length") == 1)
+    revisar("no cae en el aviso de equipo sin soporte",
+            pagina.eval_on_selector_all("#lienzo-3d .aviso-migracion", "e => e.length") == 0)
+    revisar("el lienzo tiene tamaño real",
+            pagina.eval_on_selector("#lienzo-3d canvas",
+                                    "el => el.clientWidth > 300 && el.clientHeight > 300"))
+    revisar("ofrece puntos de vista predefinidos",
+            len(pagina.query_selector_all(".btn-vista")) == 4)
+
+    # Cambiar de vista tiene que mover la cámara de verdad. Se lee la
+    # posición que la escena publica en el contenedor: el lienzo de WebGL
+    # se borra después de cada cuadro, así que comparar su imagen no
+    # serviría, y comparar solo la clase del botón no probaría nada.
+    antes = pagina.eval_on_selector("#lienzo-3d", "el => el.dataset.camara")
+    revisar("la escena publica desde dónde está mirando", bool(antes),
+            f"(dice '{antes}')")
+    pagina.click('.btn-vista[data-vista="planta"]')
+    pagina.wait_for_timeout(900)
+    despues = pagina.eval_on_selector("#lienzo-3d", "el => el.dataset.camara")
+    revisar("cambiar de punto de vista mueve la cámara", antes != despues,
+            f"(antes {antes}, después {despues})")
+    revisar("la vista en planta pone la cámara arriba",
+            float(despues.split(",")[1]) > float(antes.split(",")[1]),
+            f"(altura {despues.split(',')[1]} vs {antes.split(',')[1]})")
+    revisar("el botón elegido queda marcado",
+            pagina.eval_on_selector('.btn-vista[data-vista="planta"]',
+                                    "el => el.classList.contains('activa')"))
+
+    pagina.click('.btn-vista[data-vista="general"]')
+    pagina.wait_for_timeout(900)
+
+    # Arrastrar sobre el lienzo también tiene que girar la escena
+    caja = pagina.eval_on_selector("#lienzo-3d canvas", """el => {
+        const r = el.getBoundingClientRect();
+        return {x: r.x + r.width/2, y: r.y + r.height/2};
+    }""")
+    antes_giro = pagina.eval_on_selector("#lienzo-3d", "el => el.dataset.camara")
+    pagina.mouse.move(caja["x"], caja["y"])
+    pagina.mouse.down()
+    pagina.mouse.move(caja["x"] + 160, caja["y"] + 30, steps=8)
+    pagina.mouse.up()
+    pagina.wait_for_timeout(600)
+    revisar("arrastrar con el ratón gira la escena",
+            pagina.eval_on_selector("#lienzo-3d", "el => el.dataset.camara") != antes_giro)
+
+    # La rueda acerca y aleja
+    antes_zoom = pagina.eval_on_selector("#lienzo-3d", "el => el.dataset.camara")
+    pagina.mouse.move(caja["x"], caja["y"])
+    pagina.mouse.wheel(0, -320)
+    pagina.wait_for_timeout(500)
+    revisar("la rueda del ratón acerca la cámara",
+            pagina.eval_on_selector("#lienzo-3d", "el => el.dataset.camara") != antes_zoom)
+
+    revisar("explica cómo se maneja la vista",
+            "Arrastre" in pagina.inner_text(".ayuda-3d"))
+
+    print("\n--- Tabla de posiciones y exportación")
     pagina.click('.tab[data-v="tabla"]')
     pagina.wait_for_selector("#tabla-posiciones .dyn-table", timeout=6000)
+    pagina.wait_for_timeout(400)
     filas_tabla = len(pagina.query_selector_all("#tabla-posiciones tbody tr"))
     revisar("la tabla lista las mismas posiciones que el mapa", filas_tabla == total_kpi,
-            f"({filas_tabla} filas vs {total_kpi} ubicaciones)")
+            f"({filas_tabla} filas vs {total_kpi} posiciones)")
     revisar("distingue las posiciones libres",
             "Libre" in pagina.inner_text("#tabla-posiciones"))
-    pagina.fill("#tabla-posiciones input[type='search']", "SNK")
+    pagina.fill("#tabla-posiciones input[type='search']", "ECM-FR1")
     pagina.wait_for_timeout(300)
-    revisar("la tabla de posiciones filtra",
-            len(pagina.query_selector_all("#tabla-posiciones tbody tr")) == 1)
+    revisar("la tabla de posiciones filtra por código",
+            len(pagina.query_selector_all("#tabla-posiciones tbody tr")) == 4)
+    pagina.fill("#tabla-posiciones input[type='search']", "")
+    pagina.wait_for_timeout(300)
 
-    print("\n--- Análisis de ocupación")
+    revisar("ofrece los tres formatos de exportación",
+            len(pagina.query_selector_all('.exportar-barra [data-formato]')) == 3)
+
+    # La exportación a CSV se comprueba de verdad: se intercepta la descarga
+    # y se lee el archivo. Comprobar solo que el botón existe no diría nada
+    # sobre si el archivo sale bien.
+    with pagina.expect_download(timeout=15000) as descarga:
+        pagina.click('.btn-exp[data-formato="csv"][data-exp-id="pos"]')
+    archivo = descarga.value
+    ruta = archivo.path()
+    with open(ruta, "r", encoding="utf-8-sig") as f:
+        contenido = f.read()
+    revisar("el CSV descargado trae el encabezado", "Posición,Mueble" in contenido,
+            f"(empieza con '{contenido[:40]}')")
+    revisar("el CSV trae las posiciones", "ECM-A-01-1" in contenido)
+    revisar("el CSV trae una fila por posición",
+            len(contenido.strip().split("\n")) == total_kpi + 1,
+            f"({len(contenido.strip().split(chr(10)))} líneas)")
+    revisar("el nombre del archivo es descriptivo",
+            archivo.suggested_filename.startswith("Posiciones_del_local"),
+            f"({archivo.suggested_filename})")
+
+    with pagina.expect_download(timeout=30000) as descarga_x:
+        pagina.click('.btn-exp[data-formato="excel"][data-exp-id="pos"]')
+    revisar("el Excel se genera y se descarga",
+            descarga_x.value.suggested_filename.endswith(".xlsx"),
+            f"({descarga_x.value.suggested_filename})")
+
+    with pagina.expect_download(timeout=30000) as descarga_p:
+        pagina.click('.btn-exp[data-formato="pdf"][data-exp-id="pos"]')
+    pdf = descarga_p.value
+    revisar("el PDF se genera y se descarga",
+            pdf.suggested_filename.endswith(".pdf"))
+    with open(pdf.path(), "rb") as f:
+        cabecera_pdf = f.read(5)
+    revisar("el PDF descargado es un PDF de verdad", cabecera_pdf == b"%PDF-",
+            f"(empieza con {cabecera_pdf})")
+
+    print("\n--- Estructuras: crecer y encoger")
+    pagina.click('.tab[data-v="estructuras"]')
+    pagina.wait_for_selector("#form-estructura", timeout=6000)
+    pagina.wait_for_timeout(400)
+    revisar("ofrece los tipos de mueble reales del local",
+            "Frigorífico" in pagina.inner_text("#es-tipo"))
+    revisar("explica qué es el tipo elegido",
+            len(pagina.inner_text("#es-descripcion")) > 20)
+
+    # Al elegir un tipo, las columnas y niveles se ajustan a lo típico
+    pagina.select_option("#es-tipo", "FRIGORIFICO")
+    pagina.wait_for_timeout(300)
+    revisar("al elegir el tipo se proponen sus medidas típicas",
+            pagina.input_value("#es-cols") == "2" and pagina.input_value("#es-niv") == "5",
+            f"({pagina.input_value('#es-cols')} x {pagina.input_value('#es-niv')})")
+
+    pagina.fill("#es-nombre", "Frigorífico de prueba")
+    pagina.click("#form-estructura button[type=submit]")
+    pagina.wait_for_timeout(900)
+    creadas = [e for e in pagina.evaluate("window.__ESCRITURAS")
+               if e["tabla"] == "rpc:fn_crear_estructura"]
+    revisar("crear un mueble llama a la base", len(creadas) == 1)
+    if creadas:
+        revisar("se deja que la base asigne el literal",
+                creadas[0]["payload"].get("p_literal") is None)
+
+    pagina.click('.tab[data-v="estructuras"]')
+    pagina.wait_for_selector("[data-redim]", timeout=6000)
+    pagina.wait_for_timeout(300)
+    pagina.click("[data-redim]")
+    pagina.wait_for_selector("#rd-cols", timeout=5000)
+    revisar("se puede cambiar columnas y niveles de un mueble",
+            pagina.is_visible("#rd-cols") and pagina.is_visible("#rd-niv"))
+
+    pagina.fill("#rd-cols", "6")
+    pagina.fill("#rd-niv", "3")
+    pagina.wait_for_timeout(300)
+    revisar("el total de posiciones se recalcula al escribir",
+            pagina.inner_text("#rd-total") == "18",
+            f"(dice {pagina.inner_text('#rd-total')})")
+
+    # Encoger sobre posiciones ocupadas tiene que fallar con una
+    # explicación, no borrar en silencio.
+    pagina.fill("#rd-cols", "1")
+    pagina.fill("#rd-niv", "1")
+    pagina.click(".modal-pie button:last-child")
+    pagina.wait_for_timeout(700)
+    revisar("encoger sobre posiciones ocupadas se rechaza",
+            "todavía tienen producto" in pagina.inner_text("#rd-msg"),
+            f"(dice '{pagina.inner_text('#rd-msg')[:60]}')")
+    revisar("y el rechazo dice qué posición está ocupada",
+            "ECM-A-02-1" in pagina.inner_text("#rd-msg"))
+    pagina.click(".modal-cerrar")
+    pagina.wait_for_timeout(300)
+
+    print("\n--- Ocupación por mueble")
     pagina.click('.tab[data-v="ocupacion"]')
     pagina.wait_for_selector(".barras-ocupacion", timeout=6000)
     barras = pagina.query_selector_all(".barra-fila")
-    revisar("dibuja una barra por zona", len(barras) == 2, f"(hay {len(barras)})")
+    revisar("dibuja una barra por mueble", len(barras) == 3, f"(hay {len(barras)})")
     revisar("cada barra lleva su valor como etiqueta directa",
-            all(p.strip().endswith("%") for p in
-                [b.query_selector(".barra-numero").inner_text() for b in barras]))
-    revisar("la tabla de ocupación clasifica el estado de la zona",
+            all(b.query_selector(".barra-numero").inner_text().strip().endswith("%")
+                for b in barras))
+    revisar("la tabla clasifica el estado de cada mueble",
             any(e in pagina.inner_text("#tabla-ocupacion")
                 for e in ["Saturada", "Alta", "Holgada", "Subutilizada"]))
 

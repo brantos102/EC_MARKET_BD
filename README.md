@@ -46,10 +46,17 @@ bitácora de auditoría. Construido sobre Supabase (PostgreSQL).
 | Bandeja de salida de correo | Funcional y probado |
 | Envío de correo (comprobantes y órdenes) | Funcional (requiere publicar la función y dominio propio) |
 | Cobro con De Una por QR estático (imagen o PDF) | Funcional y probado |
+| QR de De Una a tamaño de mostrador, ajustable | Funcional y probado |
+| Ubicaciones estandarizadas `NAVE-MUEBLE-COLUMNA-NIVEL` | Funcional y probado |
+| Estructuras (estantería, frigorífico, nevera, mostrador) | Funcional y probado |
+| Vista 3D del local con three.js | Funcional y probado |
+| Exportación a Excel, PDF y CSV | Funcional y probado |
+| Recargas y servicios con su trazabilidad | Funcional y probado |
+| Acceso a POSVirtual desde el sistema | Funcional y probado |
+| Versión móvil | Funcional y probado |
 | Asistente de instalación por tipo de negocio | Funcional y probado |
 | Conexión a la base configurable desde la propia pantalla | Funcional y probado |
 | **Integración con la API de De Una** | **Requiere contrato con el banco** |
-| **Exportación a Excel / PDF / CSV** | **No implementado** |
 | **Transferencias de ubicación desde la interfaz** | **Solo en base de datos** |
 | **Facturación electrónica SRI** | **No implementado** |
 | **Contabilidad integral (asientos, cierres)** | **No implementado** |
@@ -82,6 +89,7 @@ En el proyecto de Supabase → **SQL Editor** → pegar y ejecutar **en orden**:
 | 9 | `db/009_comprobantes_clientes.sql` | Nota de venta y factura, validación de cédula/RUC ecuatorianos, clientes y proveedores |
 | 10 | `db/010_operacion_multisede.sql` | Sedes con numeración propia, cantidades por unidad, catálogo de roles y permisos editables, correo y plantillas, órdenes de compra, De Una |
 | 11 | `db/011_instalacion_deuna.sql` | Asistente de instalación, tipo de negocio bloqueado tras instalar, cobro De Una sin código |
+| 12 | `db/012_estructuras_servicios.sql` | Estructuras físicas y ubicaciones `ECM-A-01-1`, recargas y servicios, accesos externos |
 
 Si aparece el error *"new row violates row-level security policy"* y no puedes
 aplicar la 008 completa, ejecuta **`db/FIX_RLS_URGENTE.sql`**: es el arreglo
@@ -102,6 +110,8 @@ establecimientos, alta de usuarios, De Una y normas aplicables— siga
 
 Si se pregunta por qué la base es PostgreSQL y no Firebase, y cómo abrirla desde
 DBeaver o pgAdmin, está en **[`ANALISIS_BASE_DE_DATOS.md`](ANALISIS_BASE_DE_DATOS.md)**.
+Si la pregunta es por qué no se publica en Google Apps Script, está en
+**[`ANALISIS_PUBLICACION.md`](ANALISIS_PUBLICACION.md)**.
 
 ### 3. Levantar la aplicación
 

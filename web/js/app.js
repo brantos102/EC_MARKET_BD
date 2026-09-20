@@ -7,7 +7,7 @@ import { renderMovimientos } from './movimientos.js';
 import { renderKardex } from './kardex.js';
 import { renderIngresos } from './ingresos.js';
 import { renderPOS, cerrarCanalPOS } from './pos.js';
-import { renderLayout } from './layout.js';
+import { renderLayout, cerrarLayout } from './layout.js';
 import { renderCaducidades } from './caducidades.js';
 import { renderPromociones } from './promociones.js';
 import { renderAuditoria } from './auditoria.js';
@@ -17,6 +17,7 @@ import { alternarPanel } from './lib/panel.js';
 import { actualizarPanelVenta } from './lib/panel-venta.js';
 import { renderAdmin } from './admin.js';
 import { renderCompras } from './compras.js';
+import { renderServicios } from './servicios.js';
 import { aplicarRolEnMenu, limpiarPerfil } from './lib/sesion.js';
 import { abrirPerfil } from './lib/perfil.js';
 import { marcarActivo } from './lib/menu.js';
@@ -37,6 +38,7 @@ const routes = {
   reportes:     { render: renderReportes,     title: 'Reportes' },
   auditoria:    { render: renderAuditoria,    title: 'Bitácora de auditoría' },
   compras:      { render: renderCompras,      title: 'Compras a proveedores' },
+  servicios:    { render: renderServicios,    title: 'Recargas y servicios' },
   admin:        { render: renderAdmin,        title: 'Administración' },
 };
 
@@ -52,9 +54,15 @@ async function navigate() {
 
   // Al salir del punto de venta se libera la suscripción de tiempo real
   if (hash !== 'pos') cerrarCanalPOS();
+  // Y al salir del mapa se libera la escena 3D, que ocupa memoria de la
+  // tarjeta gráfica mientras esté viva.
+  if (hash !== 'layout') cerrarLayout();
 
   marcarActivo();
   pageTitle.textContent = route.title;
+  const tituloMovil = document.getElementById('titulo-movil');
+  if (tituloMovil) tituloMovil.textContent = route.title;
+  cerrarMenuMovil();
   document.body.classList.toggle('modo-pos', hash === 'pos');
 
   content.innerHTML = '<p class="loading">Cargando...</p>';
@@ -69,6 +77,34 @@ async function navigate() {
     console.error(err);
   }
 }
+
+// ---------------------------------------------------------
+// Menú en el celular
+//
+// En una pantalla angosta el menú lateral se convierte en un cajón. Se
+// cierra al elegir un módulo, al tocar fuera y con Escape: si se quedara
+// abierto, taparía justamente la pantalla a la que se acaba de entrar.
+// ---------------------------------------------------------
+const velo = document.getElementById('velo-menu');
+const barraBoton = document.getElementById('btn-menu');
+
+function cerrarMenuMovil() {
+  document.body.classList.remove('menu-abierto');
+  velo?.classList.add('hidden');
+  barraBoton?.setAttribute('aria-expanded', 'false');
+}
+
+function alternarMenuMovil() {
+  const abierto = document.body.classList.toggle('menu-abierto');
+  velo?.classList.toggle('hidden', !abierto);
+  barraBoton?.setAttribute('aria-expanded', String(abierto));
+}
+
+barraBoton?.addEventListener('click', alternarMenuMovil);
+velo?.addEventListener('click', cerrarMenuMovil);
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') cerrarMenuMovil();
+});
 
 window.addEventListener('hashchange', navigate);
 

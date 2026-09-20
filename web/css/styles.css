@@ -1344,3 +1344,344 @@ body.modo-pos .main-content { padding: 1.25rem 1.5rem; }
 }
 .deuna-previa-caja { flex: 0 0 auto; }
 .deuna-previa-pdf { width: 140px; height: 180px; border: 1px solid var(--border); border-radius: 8px; }
+
+/* =========================================================
+   Exportación
+   ========================================================= */
+.panel-cabecera { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.exportar-barra { display: inline-flex; align-items: center; gap: 0.3rem; flex-wrap: wrap; }
+.exportar-etiqueta { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.btn-exp {
+  font-size: 0.78rem; padding: 0.3rem 0.7rem; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--border); background: #fff; color: var(--text);
+}
+.btn-exp:hover { background: var(--marca); color: #fff; border-color: var(--marca); }
+.exportar-msg { font-size: 0.75rem; color: var(--muted); }
+.exportar-msg.ok { color: var(--ok); }
+.exportar-msg.error { color: var(--error); }
+
+/* =========================================================
+   Mapa del local con estructuras
+   ========================================================= */
+.mapa-local { display: grid; gap: 0.9rem; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+
+.estructura-2d { border: 1px solid var(--border); border-radius: 10px; background: #fff; padding: 0.7rem 0.8rem; }
+.estructura-2d.frio { border-color: #7fb4d6; background: linear-gradient(180deg, #f2f9fd 0%, #fff 60%); }
+.estructura-2d.congelado { border-color: #6f9bd6; background: linear-gradient(180deg, #eef4fd 0%, #fff 60%); }
+
+.estructura-cabecera { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.55rem; }
+.estructura-literal {
+  background: var(--marca-profundo); color: var(--acento);
+  font-weight: 800; font-size: 0.95rem; letter-spacing: 0.04em;
+  border-radius: 7px; padding: 0.18rem 0.5rem; min-width: 2.3rem; text-align: center;
+}
+.estructura-cabecera b { display: block; font-size: 0.88rem; line-height: 1.2; }
+.estructura-cabecera small { font-size: 0.7rem; color: var(--muted); }
+.estructura-ocupacion { margin-left: auto; font-size: 0.8rem; font-weight: 700; color: var(--marca-oscuro); }
+
+.estructura-rejilla { display: flex; flex-direction: column; gap: 3px; }
+.nivel-fila { display: flex; align-items: stretch; gap: 3px; }
+.nivel-etq {
+  width: 1.1rem; flex: 0 0 auto; display: grid; place-items: center;
+  font-size: 0.65rem; color: var(--muted); background: #f3f6f3; border-radius: 4px;
+}
+.celda {
+  flex: 1 1 0; min-width: 0; min-height: 2.2rem; border-radius: 5px; cursor: pointer;
+  border: 1px solid var(--border); background: #f8faf8;
+  display: flex; flex-direction: column; justify-content: center; align-items: center;
+  padding: 0.12rem 0.2rem; overflow: hidden;
+}
+.celda-col { font-size: 0.58rem; color: var(--muted); line-height: 1; }
+.celda-prod { font-size: 0.6rem; line-height: 1.1; text-align: center; overflow: hidden; }
+.celda.ocupada { background: #dff0e3; border-color: var(--marca-claro); }
+.celda.sin-stock { background: var(--warning-bg); border-color: var(--warning-border); }
+.celda.vacia { background: #f8faf8; border-style: dashed; }
+.celda.faltante { background: repeating-linear-gradient(45deg, #f0f0f0 0 4px, #fafafa 4px 8px); cursor: default; }
+.celda.resaltada { outline: 3px solid var(--acento); outline-offset: -1px; }
+.celda:hover { border-color: var(--marca); }
+
+.leyenda-mapa { display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; font-size: 0.75rem; color: var(--muted); margin-bottom: 0.7rem; }
+.leyenda-mapa .pt { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 0.25rem; vertical-align: -1px; }
+.pt.ocupada { background: #dff0e3; border: 1px solid var(--marca-claro); }
+.pt.sin-stock { background: var(--warning-bg); border: 1px solid var(--warning-border); }
+.pt.vacia { background: #f8faf8; border: 1px dashed var(--border); }
+.leyenda-nota { margin-left: auto; }
+
+.buscador-layout input { width: 100%; padding: 0.5rem 0.7rem; border: 1px solid var(--border); border-radius: 7px; }
+.resultado-busqueda { display: flex; gap: 0.35rem; flex-wrap: wrap; margin-top: 0.5rem; }
+.chip-ubicacion {
+  display: inline-flex; flex-direction: column; align-items: flex-start;
+  border: 1px solid var(--border); border-radius: 7px; background: #fff;
+  padding: 0.25rem 0.55rem; cursor: pointer; font: inherit; text-align: left;
+}
+.chip-ubicacion:hover { border-color: var(--marca); background: var(--marca-suave); }
+.chip-ubicacion code { font-size: 0.72rem; color: var(--marca-oscuro); font-weight: 700; }
+.chip-ubicacion span { font-size: 0.68rem; color: var(--muted); }
+.sin-resultado { font-size: 0.78rem; color: var(--muted); }
+
+/* ---------- Vista 3D ---------- */
+.panel-3d { padding: 0.7rem; }
+.barra-3d { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; flex-wrap: wrap; margin-bottom: 0.6rem; }
+.vistas-3d { display: flex; gap: 0.3rem; flex-wrap: wrap; }
+.btn-vista {
+  font-size: 0.78rem; padding: 0.3rem 0.7rem; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--border); background: #fff;
+}
+.btn-vista.activa { background: var(--marca); color: #fff; border-color: var(--marca); }
+.ayuda-3d { font-size: 0.72rem; color: var(--muted); }
+.lienzo-3d {
+  width: 100%; height: 540px; border-radius: 10px; overflow: hidden;
+  background: #eef3ef; border: 1px solid var(--border); position: relative;
+}
+.lienzo-3d canvas { display: block; width: 100% !important; height: 100% !important; }
+.detalle-3d {
+  margin-top: 0.6rem; padding: 0.6rem 0.8rem; border-radius: 8px;
+  background: #f4f8f4; font-size: 0.82rem; color: var(--muted);
+  display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; min-height: 2.6rem;
+}
+.detalle-3d.con-dato { background: var(--marca-suave); color: var(--text); }
+.pos-codigo {
+  background: var(--marca-profundo); color: var(--acento);
+  padding: 0.18rem 0.5rem; border-radius: 6px; font-weight: 700; font-size: 0.8rem;
+}
+
+/* ---------- Estructuras ---------- */
+.redim-campos { display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap; margin: 0.6rem 0; }
+.redim-campos label { display: flex; flex-direction: column; font-size: 0.82rem; }
+.redim-campos input { width: 6rem; padding: 0.45rem 0.6rem; border: 1px solid var(--border); border-radius: 6px; margin-top: 0.2rem; }
+.redim-total { font-size: 0.85rem; }
+.redim-total small { display: block; color: var(--muted); font-size: 0.72rem; }
+
+/* =========================================================
+   Recargas y servicios
+   ========================================================= */
+.panel-externo { border-left: 4px solid #1f7a8c; }
+.acceso-externo {
+  display: flex; align-items: center; gap: 0.9rem; flex-wrap: wrap;
+  border: 1px solid var(--border); border-radius: 9px; padding: 0.7rem 0.9rem; margin-top: 0.5rem;
+  border-left: 4px solid var(--acc, var(--marca));
+}
+.acceso-icono { width: 30px; height: 30px; color: var(--acc, var(--marca)); flex: 0 0 auto; }
+.acceso-datos { flex: 1 1 240px; }
+.acceso-datos b { display: block; font-size: 0.92rem; }
+.acceso-datos span { font-size: 0.8rem; color: var(--text); }
+.acceso-datos small { display: block; font-size: 0.72rem; color: var(--muted); margin-top: 0.2rem; line-height: 1.45; }
+
+.externo-aviso { text-align: center; max-width: 420px; }
+.externo-icono { width: 44px; height: 44px; color: var(--marca); }
+.externo-url { margin: 0.6rem 0; }
+.externo-url code { font-size: 0.78rem; background: #f1f5f1; padding: 0.25rem 0.5rem; border-radius: 5px; word-break: break-all; }
+
+.servicios-rejilla { display: grid; gap: 0.6rem; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); margin: 0.7rem 0; }
+.servicio-tarjeta {
+  display: flex; flex-direction: column; align-items: center; gap: 0.3rem;
+  border: 2px solid var(--border); border-radius: 10px; background: #fff;
+  padding: 0.8rem 0.5rem; cursor: pointer; font: inherit;
+}
+.servicio-tarjeta:hover { border-color: var(--srv, var(--marca)); background: #fafdfa; }
+.servicio-icono { width: 26px; height: 26px; color: var(--srv, var(--marca)); }
+.servicio-tarjeta b { font-size: 0.85rem; text-align: center; line-height: 1.2; }
+.servicio-tarjeta small { font-size: 0.7rem; color: var(--muted); }
+
+.form-servicio label { display: block; margin-bottom: 0.7rem; font-size: 0.84rem; }
+.form-servicio input, .form-servicio select {
+  width: 100%; padding: 0.5rem 0.6rem; border: 1px solid var(--border); border-radius: 7px; margin-top: 0.2rem;
+}
+.form-servicio small { color: var(--muted); font-size: 0.72rem; }
+.monto-caja { display: flex; align-items: center; gap: 0.3rem; }
+.monto-caja span { font-size: 1.3rem; font-weight: 700; color: var(--marca-oscuro); }
+.monto-caja input { font-size: 1.3rem; font-weight: 700; }
+.montos-rapidos { display: flex; gap: 0.35rem; flex-wrap: wrap; margin-bottom: 0.8rem; }
+.monto-rapido {
+  flex: 1 1 auto; padding: 0.4rem; border: 1px solid var(--border);
+  border-radius: 999px; background: #fff; cursor: pointer; font-size: 0.82rem;
+}
+.monto-rapido:hover { background: var(--marca); color: #fff; border-color: var(--marca); }
+.comision-previa { background: var(--marca-suave); border-radius: 8px; padding: 0.5rem 0.7rem; font-size: 0.82rem; }
+.comision-previa b { font-size: 1rem; color: var(--marca-oscuro); }
+.comision-previa small { display: block; color: var(--muted); font-size: 0.7rem; }
+
+/* =========================================================
+   QR de De Una a tamaño de mostrador
+   ========================================================= */
+.btn-ampliar { margin: 0.4rem 0 0.6rem; width: 100%; }
+
+.qr-pantalla {
+  display: flex; gap: 1.5rem; align-items: center; justify-content: center;
+  flex-wrap: wrap; background: #fff; padding: 0.5rem;
+}
+.qr-pantalla:fullscreen { padding: 3vh 4vw; align-content: center; }
+.qr-lado-izq { display: flex; flex-direction: column; align-items: center; gap: 0.8rem; }
+.qr-marco {
+  width: var(--qr, 380px); height: var(--qr, 380px);
+  display: grid; place-items: center; background: #fff;
+  border: 3px solid var(--marca); border-radius: 16px; padding: 10px;
+  box-shadow: 0 8px 32px rgba(1, 61, 16, 0.14);
+  transition: width 0.12s ease, height 0.12s ease;
+}
+.qr-img { width: 100%; height: 100%; object-fit: contain; }
+.qr-pdf { width: 100%; height: 100%; border: 0; }
+.qr-sin { text-align: center; color: var(--muted); font-size: 0.88rem; }
+.qr-sin b { display: block; color: var(--error); margin-bottom: 0.3rem; }
+
+.qr-zoom { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; justify-content: center; }
+.qr-btn {
+  width: 2.4rem; height: 2.4rem; border-radius: 8px; border: 1px solid var(--border);
+  background: #fff; font-size: 1.2rem; font-weight: 700; cursor: pointer; color: var(--marca-oscuro);
+}
+.qr-btn.ancho { width: auto; padding: 0 0.9rem; font-size: 0.8rem; font-weight: 600; }
+.qr-btn:hover { background: var(--marca); color: #fff; border-color: var(--marca); }
+#qr-tamano { width: 180px; accent-color: var(--marca); }
+
+.qr-lado-der { flex: 1 1 260px; max-width: 380px; }
+.qr-etiqueta { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0; }
+.qr-monto { font-size: 3.4rem; font-weight: 800; color: var(--marca-oscuro); margin: 0.1rem 0 0.8rem; line-height: 1; }
+.qr-pasos { margin: 0 0 0.8rem 1.1rem; font-size: 0.9rem; line-height: 1.7; }
+.qr-titular { font-size: 0.85rem; color: var(--text); }
+
+/* =========================================================
+   Versión móvil
+   =========================================================
+   La caja se usa en una computadora, pero el dueño consulta el stock y
+   los cierres desde el teléfono, y el bodeguero revisa ubicaciones con
+   el celular en la mano frente a la percha. Por eso el objetivo aquí no
+   es "que quepa", es que se pueda trabajar: menú en cajón, POS en una
+   sola columna, tablas con desplazamiento propio y controles del tamaño
+   de un dedo.
+   ========================================================= */
+
+.barra-movil { display: none; }
+.velo-menu { display: none; }
+
+@media (max-width: 860px) {
+  .barra-movil {
+    display: flex; align-items: center; gap: 0.7rem;
+    position: sticky; top: 0; z-index: 60;
+    background: var(--marca-profundo); color: #fff;
+    padding: 0.55rem 0.9rem;
+  }
+  .btn-menu {
+    width: 2.4rem; height: 2.4rem; border: 0; background: transparent;
+    display: flex; flex-direction: column; justify-content: center; gap: 5px;
+    cursor: pointer; padding: 0;
+  }
+  .btn-menu span { display: block; height: 2px; background: #fff; border-radius: 2px; transition: transform 0.2s ease, opacity 0.2s ease; }
+  body.menu-abierto .btn-menu span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+  body.menu-abierto .btn-menu span:nth-child(2) { opacity: 0; }
+  body.menu-abierto .btn-menu span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+  .barra-logo { width: 30px; height: 30px; object-fit: contain; background: #fff; border-radius: 7px; padding: 2px; }
+  .barra-titulo { font-size: 0.95rem; font-weight: 600; }
+
+  .velo-menu {
+    display: block; position: fixed; inset: 0; z-index: 70;
+    background: rgba(0, 0, 0, 0.45);
+  }
+  .velo-menu.hidden { display: none; }
+
+  /* El menú deja de ser una columna y pasa a ser un cajón */
+  .sidebar {
+    position: fixed; top: 0; left: 0; bottom: 0; width: 82vw; max-width: 310px;
+    transform: translateX(-102%); transition: transform 0.22s ease;
+    z-index: 80; height: 100%;
+  }
+  body.menu-abierto .sidebar { transform: translateX(0); }
+
+  .app-shell { flex-direction: column; }
+  .main-content { margin-left: 0; padding: 0.9rem; }
+  #page-title { display: none; }          /* ya está en la barra superior */
+
+  .logo-menu { width: 110px; }
+
+  /* ---- Punto de venta en una columna ---- */
+  /* min-width:0 y box-sizing en las columnas: sin eso, el contenido más
+     ancho (el campo de escaneo con su lista de sugerencias) estira la
+     columna más allá de la pantalla y aparece un desplazamiento
+     horizontal que deja el botón de cobrar fuera de la vista. */
+  .pos-layout { display: flex; flex-direction: column; gap: 0.8rem; width: 100%; min-width: 0; }
+  .pos-izquierda, .pos-derecha { width: 100%; min-width: 0; max-width: 100%; }
+  .pos-resumen { position: static; }
+
+  /* El resumen y el botón de cobrar se quedan pegados abajo: en el
+     celular son lo que el cajero necesita siempre a la vista. */
+  .modo-pos .pos-derecha {
+    position: sticky; bottom: 0; z-index: 30;
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.12);
+  }
+
+  .scan-input { font-size: 1rem; }
+  .btn-grande { padding: 0.9rem; font-size: 1.05rem; }
+
+  /* ---- Tablas: desplazamiento propio en vez de romper el ancho ---- */
+  .dyn-table-wrap, .tabla-scroll, #tabla-posiciones, #tabla-mov,
+  #tabla-hoy, #tabla-estructuras, #tabla-ocupacion, #tabla-resumen {
+    overflow-x: auto; -webkit-overflow-scrolling: touch;
+  }
+  .dyn-table { min-width: 560px; }
+  .pos-carrito { min-width: 0; }
+
+  /* El carrito del POS sí se adapta: es lo que más se toca.
+     En un teléfono caben cuatro columnas, así que se dejan las que el
+     cajero mira de verdad —producto, cantidad, subtotal y quitar— y se
+     esconden el precio unitario, el descuento y el IVA, que ya están
+     sumados abajo en el resumen. */
+  .pos-carrito th:nth-child(3), .pos-carrito td:nth-child(3),
+  .pos-carrito th:nth-child(4), .pos-carrito td:nth-child(4),
+  .pos-carrito th:nth-child(6), .pos-carrito td:nth-child(6) { display: none; }
+  .pos-carrito { width: 100%; min-width: 0; }
+  .pos-carrito .linea-nombre { font-size: 0.85rem; }
+
+  /* ---- Controles del tamaño de un dedo ---- */
+  .cant-btn, .cant-peso { width: 2.5rem; font-size: 1.2rem; }
+  .cant-stepper .cant-input { width: 3.4rem; font-size: 1rem; padding: 0.5rem 0.15rem; }
+  .tab, .sub-tab, .btn-exp, .btn-vista { padding: 0.45rem 0.85rem; font-size: 0.82rem; }
+  .forma-pago { flex: 1 1 45%; padding: 0.7rem 0.5rem; }
+
+  /* ---- Mapa y 3D ---- */
+  .mapa-local { grid-template-columns: 1fr; }
+  .lienzo-3d { height: 62vh; }
+  .leyenda-nota { margin-left: 0; width: 100%; }
+
+  /* ---- Modales a pantalla casi completa ---- */
+  .modal { max-width: 96vw !important; max-height: 92vh; overflow-y: auto; }
+  .modal-pie { position: sticky; bottom: 0; background: #fff; }
+  .modal-pie button { flex: 1 1 auto; padding: 0.7rem; }
+
+  /* ---- QR: el código manda, el texto pasa debajo ---- */
+  .qr-pantalla { flex-direction: column; }
+  .qr-monto { font-size: 2.6rem; }
+  .qr-lado-der { max-width: none; text-align: center; }
+  .qr-pasos { text-align: left; }
+
+  .kpis { gap: 0.5rem; }
+  .kpi { flex: 1 1 42%; }
+  .inline-form { flex-direction: column; align-items: stretch; }
+  .inline-form input, .inline-form select, .inline-form button { width: 100%; }
+  .form-empresa { grid-template-columns: 1fr; }
+  .panel-venta { width: calc(100vw - 1.4rem); right: 0.7rem; bottom: 0.7rem; }
+}
+
+/* Red de seguridad contra el desplazamiento horizontal.
+   Un solo elemento que se pase de ancho arrastra toda la página, y el
+   usuario termina "perdiendo" el botón de cobrar hacia la derecha. Estas
+   reglas valen para cualquier tamaño de pantalla, no solo para el móvil:
+   un desborde en el escritorio también es un error. */
+html, body { max-width: 100%; overflow-x: hidden; }
+img, video, canvas, embed, iframe { max-width: 100%; }
+.panel, .kpi-card, .inline-form, .form-empresa { min-width: 0; box-sizing: border-box; }
+.panel > * { max-width: 100%; }
+
+/* Pantallas muy angostas: se reduce el gasto de espacio horizontal */
+@media (max-width: 420px) {
+  .main-content { padding: 0.6rem; }
+  .panel { padding: 0.8rem 0.7rem; }
+  .kpi { flex: 1 1 100%; }
+  .servicios-rejilla { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+}
+
+/* En horizontal el teclado del celular tapa media pantalla: el modal
+   necesita todo el alto disponible. */
+@media (max-height: 520px) and (orientation: landscape) {
+  .modal { max-height: 96vh; }
+  .peso-teclado .peso-tecla { padding: 0.5rem 0; }
+}

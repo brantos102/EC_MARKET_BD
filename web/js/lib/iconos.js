@@ -30,6 +30,15 @@ const TRAZOS = {
   personas:  '<circle cx="9" cy="8" r="3.2"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/>' +
              '<path d="M16 5.2a3.2 3.2 0 0 1 0 5.6"/><path d="M17.5 14.2A6.5 6.5 0 0 1 21.5 20"/>',
   llave:     '<circle cx="7.5" cy="14.5" r="3.5"/><path d="m10.5 12 8-8 2.5 2.5-1.8 1.8 1.6 1.6-2.2 2.2-1.6-1.6L15 12.8"/>',
+  senal:     '<path d="M4.5 19.5V14"/><path d="M9.5 19.5V10"/><path d="M14.5 19.5V6"/><path d="M19.5 19.5V3"/>',
+  rayo:      '<path d="M13 2 4.5 13.5H11l-1 8.5 8.5-11.5H12z"/>',
+  gota:      '<path d="M12 3s6 6.4 6 10.4a6 6 0 0 1-12 0C6 9.4 12 3 12 3z"/>',
+  enlace:    '<path d="M10 13a4.5 4.5 0 0 0 6.4.2l2.6-2.6a4.5 4.5 0 0 0-6.4-6.4L11 5.8"/>' +
+             '<path d="M14 11a4.5 4.5 0 0 0-6.4-.2L5 13.4a4.5 4.5 0 0 0 6.4 6.4L13 18.2"/>',
+  qr:        '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>' +
+             '<rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3z"/>' +
+             '<path d="M20 14v3"/><path d="M14 20h3"/><path d="M20 20h1"/>',
+  lupa:      '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/>',
   punto:     '<circle cx="12" cy="12" r="4"/>',
 };
 

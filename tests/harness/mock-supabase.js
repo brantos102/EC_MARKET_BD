@@ -78,10 +78,149 @@
         maneja_caducidad: false, maneja_peso: false },
     ],
     sedes: [
-      { id: 'sede-1', codigo: '001', nombre: 'Matriz', direccion: 'Quito',
+      { id: 'sede-1', codigo: '001', codigo_nave: 'ECM', nombre: 'Matriz', direccion: 'Quito',
         telefono: '02-2000000', punto_emision: '001', es_matriz: true, activa: true },
-      { id: 'sede-2', codigo: '002', nombre: 'Sucursal Norte', direccion: 'Carcelén',
+      { id: 'sede-2', codigo: '002', codigo_nave: 'ECN', nombre: 'Sucursal Norte', direccion: 'Carcelén',
         telefono: null, punto_emision: '001', es_matriz: false, activa: true },
+    ],
+    tipos_estructura: [
+      { codigo: 'ESTANTERIA', nombre: 'Estantería mural', descripcion: 'Percha contra la pared.',
+        prefijo_sugerido: 'A', temperatura: 'AMBIENTE', ancho_cm: 120, alto_cm: 200, fondo_cm: 45,
+        columnas_defecto: 4, niveles_defecto: 5, doble_cara: false, color_hex: '#d8dee0', orden: 10 },
+      { codigo: 'FRIGORIFICO', nombre: 'Frigorífico vertical', descripcion: 'Vitrina de puerta de vidrio.',
+        prefijo_sugerido: 'FR', temperatura: 'REFRIGERADO', ancho_cm: 80, alto_cm: 200, fondo_cm: 65,
+        columnas_defecto: 2, niveles_defecto: 5, doble_cara: false, color_hex: '#bcd4e6', orden: 40 },
+      { codigo: 'NEVERA', nombre: 'Nevera horizontal', descripcion: 'Arcón de tapa superior.',
+        prefijo_sugerido: 'NV', temperatura: 'CONGELADO', ancho_cm: 150, alto_cm: 90, fondo_cm: 70,
+        columnas_defecto: 3, niveles_defecto: 2, doble_cara: false, color_hex: '#a9c9e0', orden: 50 },
+      { codigo: 'MOSTRADOR', nombre: 'Mostrador / caja', descripcion: 'Donde se cobra.',
+        prefijo_sugerido: 'MO', temperatura: 'AMBIENTE', ancho_cm: 180, alto_cm: 110, fondo_cm: 60,
+        columnas_defecto: 4, niveles_defecto: 2, doble_cara: false, color_hex: '#c9a227', orden: 60 },
+    ],
+    v_estructuras_ocupacion: [
+      { estructura_id: 'est-a', sede_id: 'sede-1', codigo_nave: 'ECM', literal: 'A',
+        nombre: 'Perecibles', tipo: 'ESTANTERIA', tipo_nombre: 'Estantería mural',
+        columnas: 2, niveles: 2, ancho_cm: 120, alto_cm: 200, fondo_cm: 45,
+        pos_x_cm: 20, pos_y_cm: 40, rotacion_grados: 0, temperatura: 'AMBIENTE',
+        color_hex: '#d8dee0', doble_cara: false, activa: true, orden: 10,
+        posiciones: 4, posiciones_ocupadas: 2, ocupacion_pct: 50.0 },
+      { estructura_id: 'est-i', sede_id: 'sede-1', codigo_nave: 'ECM', literal: 'I',
+        nombre: 'Snacks', tipo: 'ESTANTERIA', tipo_nombre: 'Estantería mural',
+        columnas: 2, niveles: 2, ancho_cm: 120, alto_cm: 200, fondo_cm: 45,
+        pos_x_cm: 180, pos_y_cm: 40, rotacion_grados: 0, temperatura: 'AMBIENTE',
+        color_hex: '#d8dee0', doble_cara: false, activa: true, orden: 20,
+        posiciones: 4, posiciones_ocupadas: 1, ocupacion_pct: 25.0 },
+      { estructura_id: 'est-fr1', sede_id: 'sede-1', codigo_nave: 'ECM', literal: 'FR1',
+        nombre: 'Frigorífico de bebidas', tipo: 'FRIGORIFICO', tipo_nombre: 'Frigorífico vertical',
+        columnas: 2, niveles: 2, ancho_cm: 80, alto_cm: 200, fondo_cm: 65,
+        pos_x_cm: 340, pos_y_cm: 40, rotacion_grados: 0, temperatura: 'REFRIGERADO',
+        color_hex: '#bcd4e6', doble_cara: false, activa: true, orden: 30,
+        posiciones: 4, posiciones_ocupadas: 0, ocupacion_pct: 0.0 },
+    ],
+    v_posiciones: [
+      { ubicacion_id: 'u1', codigo: 'ECM-A-01-1', estructura_id: 'est-a', literal: 'A',
+        estructura: 'Perecibles', tipo: 'ESTANTERIA', temperatura: 'AMBIENTE',
+        sede_id: 'sede-1', codigo_nave: 'ECM', columna: 1, nivel: 1, activa: true,
+        producto_id: 'prod-limon', producto_codigo: 'FRU-013', producto: 'Limón sutil',
+        marca: null, categoria: 'Frutas', stock: 40, unidad: 'LB' },
+      { ubicacion_id: 'u2', codigo: 'ECM-A-01-2', estructura_id: 'est-a', literal: 'A',
+        estructura: 'Perecibles', tipo: 'ESTANTERIA', temperatura: 'AMBIENTE',
+        sede_id: 'sede-1', codigo_nave: 'ECM', columna: 1, nivel: 2, activa: true,
+        producto_id: null, producto_codigo: null, producto: null,
+        marca: null, categoria: null, stock: 0, unidad: null },
+      { ubicacion_id: 'u3', codigo: 'ECM-A-02-1', estructura_id: 'est-a', literal: 'A',
+        estructura: 'Perecibles', tipo: 'ESTANTERIA', temperatura: 'AMBIENTE',
+        sede_id: 'sede-1', codigo_nave: 'ECM', columna: 2, nivel: 1, activa: true,
+        producto_id: 'prod-pina', producto_codigo: 'FRU-020', producto: 'Piña',
+        marca: null, categoria: 'Frutas', stock: 0, unidad: 'UND' },
+      { ubicacion_id: 'u4', codigo: 'ECM-A-02-2', estructura_id: 'est-a', literal: 'A',
+        estructura: 'Perecibles', tipo: 'ESTANTERIA', temperatura: 'AMBIENTE',
+        sede_id: 'sede-1', codigo_nave: 'ECM', columna: 2, nivel: 2, activa: true,
+        producto_id: null, producto_codigo: null, producto: null,
+        marca: null, categoria: null, stock: 0, unidad: null },
+      { ubicacion_id: 'u5', codigo: 'ECM-I-01-1', estructura_id: 'est-i', literal: 'I',
+        estructura: 'Snacks', tipo: 'ESTANTERIA', temperatura: 'AMBIENTE',
+        sede_id: 'sede-1', codigo_nave: 'ECM', columna: 1, nivel: 1, activa: true,
+        producto_id: 'prod-ruffles', producto_codigo: 'SNK-001', producto: 'Papas Ruffles 140g',
+        marca: 'Ruffles', categoria: 'Snacks', stock: 12, unidad: 'UND' },
+      { ubicacion_id: 'u6', codigo: 'ECM-I-01-2', estructura_id: 'est-i', literal: 'I',
+        estructura: 'Snacks', tipo: 'ESTANTERIA', temperatura: 'AMBIENTE',
+        sede_id: 'sede-1', codigo_nave: 'ECM', columna: 1, nivel: 2, activa: true,
+        producto_id: null, producto_codigo: null, producto: null,
+        marca: null, categoria: null, stock: 0, unidad: null },
+      { ubicacion_id: 'u7', codigo: 'ECM-I-02-1', estructura_id: 'est-i', literal: 'I',
+        estructura: 'Snacks', tipo: 'ESTANTERIA', temperatura: 'AMBIENTE',
+        sede_id: 'sede-1', codigo_nave: 'ECM', columna: 2, nivel: 1, activa: true,
+        producto_id: null, producto_codigo: null, producto: null,
+        marca: null, categoria: null, stock: 0, unidad: null },
+      { ubicacion_id: 'u8', codigo: 'ECM-I-02-2', estructura_id: 'est-i', literal: 'I',
+        estructura: 'Snacks', tipo: 'ESTANTERIA', temperatura: 'AMBIENTE',
+        sede_id: 'sede-1', codigo_nave: 'ECM', columna: 2, nivel: 2, activa: true,
+        producto_id: null, producto_codigo: null, producto: null,
+        marca: null, categoria: null, stock: 0, unidad: null },
+      { ubicacion_id: 'u9', codigo: 'ECM-FR1-01-1', estructura_id: 'est-fr1', literal: 'FR1',
+        estructura: 'Frigorífico de bebidas', tipo: 'FRIGORIFICO', temperatura: 'REFRIGERADO',
+        sede_id: 'sede-1', codigo_nave: 'ECM', columna: 1, nivel: 1, activa: true,
+        producto_id: null, producto_codigo: null, producto: null,
+        marca: null, categoria: null, stock: 0, unidad: null },
+      { ubicacion_id: 'u10', codigo: 'ECM-FR1-01-2', estructura_id: 'est-fr1', literal: 'FR1',
+        estructura: 'Frigorífico de bebidas', tipo: 'FRIGORIFICO', temperatura: 'REFRIGERADO',
+        sede_id: 'sede-1', codigo_nave: 'ECM', columna: 1, nivel: 2, activa: true,
+        producto_id: null, producto_codigo: null, producto: null,
+        marca: null, categoria: null, stock: 0, unidad: null },
+      { ubicacion_id: 'u11', codigo: 'ECM-FR1-02-1', estructura_id: 'est-fr1', literal: 'FR1',
+        estructura: 'Frigorífico de bebidas', tipo: 'FRIGORIFICO', temperatura: 'REFRIGERADO',
+        sede_id: 'sede-1', codigo_nave: 'ECM', columna: 2, nivel: 1, activa: true,
+        producto_id: null, producto_codigo: null, producto: null,
+        marca: null, categoria: null, stock: 0, unidad: null },
+      { ubicacion_id: 'u12', codigo: 'ECM-FR1-02-2', estructura_id: 'est-fr1', literal: 'FR1',
+        estructura: 'Frigorífico de bebidas', tipo: 'FRIGORIFICO', temperatura: 'REFRIGERADO',
+        sede_id: 'sede-1', codigo_nave: 'ECM', columna: 2, nivel: 2, activa: true,
+        producto_id: null, producto_codigo: null, producto: null,
+        marca: null, categoria: null, stock: 0, unidad: null },
+    ],
+    servicios_catalogo: [
+      { id: 'srv-1', codigo: 'REC_CLARO', nombre: 'Recarga Claro', tipo: 'RECARGA',
+        proveedor: 'Claro', comision_tipo: 'PORCENTAJE', comision_valor: 5,
+        monto_minimo: 1, monto_maximo: 100, requiere_referencia: true,
+        etiqueta_referencia: 'Número de celular', icono: 'senal',
+        color_hex: '#d52b1e', activo: true, orden: 10 },
+      { id: 'srv-2', codigo: 'REC_MOVISTAR', nombre: 'Recarga Movistar', tipo: 'RECARGA',
+        proveedor: 'Movistar', comision_tipo: 'PORCENTAJE', comision_valor: 5,
+        monto_minimo: 1, monto_maximo: 100, requiere_referencia: true,
+        etiqueta_referencia: 'Número de celular', icono: 'senal',
+        color_hex: '#019df4', activo: true, orden: 20 },
+      { id: 'srv-3', codigo: 'PAGO_LUZ', nombre: 'Pago de luz', tipo: 'PAGO_SERVICIO',
+        proveedor: 'Empresa Eléctrica', comision_tipo: 'FIJA', comision_valor: 0.25,
+        monto_minimo: 1, monto_maximo: null, requiere_referencia: true,
+        etiqueta_referencia: 'Número de suministro', icono: 'rayo',
+        color_hex: '#f5c518', activo: true, orden: 50 },
+    ],
+    accesos_externos: [
+      { id: 'acc-1', codigo: 'POSVIRTUAL', nombre: 'POSVirtual — Recargas',
+        descripcion: 'Sistema de Ponle Más para recargar saldo.',
+        url: 'https://posvirtual.ponlemas.com:86/login', icono: 'senal',
+        color_hex: '#1f7a8c',
+        instrucciones: 'Se abre en una ventana aparte porque es un sistema de otra empresa.',
+        activo: true, orden: 10 },
+    ],
+    v_servicios_detalle: [
+      { id: 'vs-1', numero: 'SRV-2026-00001', fecha: new Date().toISOString().slice(0, 10),
+        created_at: new Date().toISOString(), servicio_codigo: 'REC_CLARO',
+        servicio: 'Recarga Claro', tipo: 'RECARGA', proveedor: 'Claro',
+        monto: 10, comision: 0.5, referencia: '0999123456', codigo_operadora: 'PV-778812',
+        forma_pago: 'EFECTIVO', estado: 'COMPLETADA', cajero_nombre: 'Prueba',
+        observacion: null, sede: 'Matriz', codigo_nave: 'ECM' },
+    ],
+    v_resumen_mensual: [
+      { mes: '2026-09-01', sede_id: 'sede-1', origen: 'MERCADERIA',
+        transacciones: 42, monto: 1580.40, comision: 0 },
+      { mes: '2026-09-01', sede_id: 'sede-1', origen: 'SERVICIOS',
+        transacciones: 18, monto: 210.00, comision: 10.50 },
+    ],
+    v_lotes_disponibles: [
+      { producto_id: 'prod-limon', codigo_lote: 'L-20260919-FRU-013',
+        fecha_caducidad: '2026-10-09', cantidad_disponible: 40, costo_unitario: 0.45 },
     ],
     roles_catalogo: [
       { codigo: 'ADMIN', nombre: 'Administrador', descripcion: 'Configura todo el sistema.', nivel: 1, activo: true },
@@ -383,6 +522,13 @@
       limit() { return api; },
       gt() { return api; },
       gte() { return api; },
+      lt() { return api; },
+      lte() { return api; },
+      neq() { return api; },
+      in() { return api; },
+      ilike() { return api; },
+      is() { return api; },
+      range() { return api; },
       eq(campo, valor) { estado.filtros.push([campo, valor]); return api; },
       or(expresion) { estado.or = expresion; return api; },
 
@@ -501,6 +647,27 @@
         },
         error: null,
       };
+    }
+    if (nombre === 'fn_crear_estructura') {
+      window.__ESCRITURAS.push({ tabla: 'rpc:fn_crear_estructura', operacion: 'rpc', payload: args });
+      return { data: 'est-nueva', error: null };
+    }
+    if (nombre === 'fn_redimensionar_estructura') {
+      window.__ESCRITURAS.push({ tabla: 'rpc:fn_redimensionar_estructura', operacion: 'rpc', payload: args });
+      if (args.p_columnas < 2 || args.p_niveles < 2) {
+        return { data: null, error: { message:
+          'No se puede encoger: 1 posiciones todavía tienen producto (ECM-A-02-1). ' +
+          'Mueva primero esos productos a otra ubicación.' } };
+      }
+      return { data: { ok: true, posiciones_creadas: 4, posiciones_eliminadas: 0 }, error: null };
+    }
+    if (nombre === 'fn_registrar_servicio') {
+      window.__ESCRITURAS.push({ tabla: 'rpc:fn_registrar_servicio', operacion: 'rpc', payload: args });
+      const s = DATOS.servicios_catalogo.find((x) => x.codigo === args.p_servicio_codigo);
+      const com = s.comision_tipo === 'PORCENTAJE'
+        ? Number(args.p_monto) * s.comision_valor / 100 : Number(s.comision_valor);
+      return { data: { ok: true, id: 'vs-nueva', numero: 'SRV-2026-00002',
+                       servicio: s.nombre, monto: args.p_monto, comision: com }, error: null };
     }
     if (nombre === 'fn_config_deuna') {
       const e = DATOS.empresa[0];

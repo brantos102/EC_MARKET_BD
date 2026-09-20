@@ -1,417 +1,675 @@
+// Mapa del local: dónde está físicamente cada producto.
+//
+// Cinco pestañas sobre los mismos datos:
+//   Mapa        — planta en 2D, una celda por posición, con su ocupación.
+//   Vista 3D    — el local dibujado con three.js, como se ve al entrar.
+//   Posiciones  — la tabla, buscable y exportable.
+//   Estructuras — dar de alta muebles y cambiarles columnas o niveles.
+//   Ocupación   — qué tan llena está cada estructura.
+//
+// El código de posición es NAVE-LITERAL-COLUMNA-NIVEL (ECM-A-01-1), y
+// esa cadena es lo que el bodeguero lee en voz alta, así que aparece
+// literal en las cinco pestañas.
+
 import { supabase } from './supabaseClient.js';
 import { renderTable } from './lib/table.js';
 import { abrirModal, cerrarModal } from './lib/modal.js';
 import { traducirErrorSupabase } from './lib/errores.js';
+import { icono } from './lib/iconos.js';
+import { botonesExportar, conectarExportar, metaDeEmpresa } from './lib/exportar.js';
+import { empresaActual } from './lib/marca.js';
 
-let datos = [];
+let estructuras = [];
+let posiciones = [];
+let escena = null;          // control de la escena 3D, si está creada
 
 export async function renderLayout(container) {
-  container.innerHTML = '<p class="loading">Cargando el mapa del market...</p>';
+  container.innerHTML = '<p class="loading">Cargando el mapa del local…</p>';
 
-  const { data, error } = await supabase
-    .from('v_ocupacion_layout')
-    .select('*')
-    .order('orden')
-    .order('pasillo')
-    .order('estante')
-    .order('nivel');
+  const [{ data: estr, error: errE }, { data: pos, error: errP }] = await Promise.all([
+    supabase.from('v_estructuras_ocupacion').select('*').order('orden').order('literal'),
+    supabase.from('v_posiciones').select('*').order('codigo'),
+  ]);
 
-  if (error) {
-    container.innerHTML = traducirErrorSupabase(error, 'v_ocupacion_layout');
+  if (errE) {
+    container.innerHTML = traducirErrorSupabase(errE, 'v_estructuras_ocupacion');
     return;
   }
-  datos = data ?? [];
+  if (errP) {
+    container.innerHTML = traducirErrorSupabase(errP, 'v_posiciones');
+    return;
+  }
 
-  const totalUbic = new Set(datos.map((f) => f.ubicacion_id)).size;
-  const ocupadas = new Set(datos.filter((f) => f.producto_id).map((f) => f.ubicacion_id)).size;
-  const zonas = new Set(datos.map((f) => f.zona_codigo)).size;
+  estructuras = estr ?? [];
+  posiciones = pos ?? [];
+
+  const total = posiciones.length;
+  const ocupadas = posiciones.filter((p) => p.producto_id).length;
+  const sinStock = posiciones.filter((p) => p.producto_id && Number(p.stock) <= 0).length;
 
   container.innerHTML = `
     <div class="kpi-row">
-      <div class="kpi-card"><span class="kpi-label">Zonas</span><span class="kpi-value">${zonas}</span></div>
-      <div class="kpi-card"><span class="kpi-label">Ubicaciones</span><span class="kpi-value">${totalUbic}</span></div>
-      <div class="kpi-card">
-        <span class="kpi-label">Ocupadas</span>
-        <span class="kpi-value">${ocupadas}</span>
-        <span class="kpi-sub">${totalUbic ? Math.round((ocupadas / totalUbic) * 100) : 0}% del total</span>
-      </div>
-      <div class="kpi-card">
-        <span class="kpi-label">Libres</span>
-        <span class="kpi-value">${totalUbic - ocupadas}</span>
-      </div>
+      <div class="kpi-card"><span class="kpi-value">${estructuras.length}</span><span class="kpi-label">Muebles</span></div>
+      <div class="kpi-card"><span class="kpi-value">${total}</span><span class="kpi-label">Posiciones</span></div>
+      <div class="kpi-card"><span class="kpi-value">${ocupadas}</span><span class="kpi-label">Ocupadas</span></div>
+      <div class="kpi-card"><span class="kpi-value">${total - ocupadas}</span><span class="kpi-label">Libres</span></div>
+      <div class="kpi-card ${sinStock ? 'kpi-warning' : ''}">
+        <span class="kpi-value">${sinStock}</span><span class="kpi-label">Sin stock</span></div>
     </div>
 
-    <div class="panel">
-      <input type="search" id="layout-buscar" class="buscador-layout"
-             placeholder="Buscar un producto para ver dónde está ubicado..." />
-      <div id="layout-resultado-busqueda"></div>
+    <div class="panel buscador-layout">
+      <label for="layout-buscar">Buscar un producto y ver dónde está</label>
+      <input type="search" id="layout-buscar" placeholder="Nombre, marca, código o código de posición" />
+      <div id="layout-resultado-busqueda" class="resultado-busqueda"></div>
     </div>
 
     <div class="tabs">
-      <button class="tab active" data-v="mapa">Mapa 2D</button>
+      <button class="tab active" data-v="mapa">Mapa del local</button>
       <button class="tab" data-v="tresd">Vista 3D</button>
-      <button class="tab" data-v="tabla">Tabla de posiciones</button>
-      <button class="tab" data-v="ocupacion">Análisis de ocupación</button>
+      <button class="tab" data-v="tabla">Posiciones</button>
+      <button class="tab" data-v="estructuras">Estructuras</button>
+      <button class="tab" data-v="ocupacion">Ocupación</button>
     </div>
-    <div id="layout-vista"></div>
-  `;
+    <div id="layout-vista"></div>`;
 
   const vista = container.querySelector('#layout-vista');
+
   container.querySelectorAll('.tab').forEach((btn) => {
     btn.addEventListener('click', () => {
       container.querySelectorAll('.tab').forEach((b) => b.classList.remove('active'));
       btn.classList.add('active');
-      pintarVista(btn.dataset.v, vista);
+      pintar(btn.dataset.v, vista, container);
     });
   });
 
-  pintarVista('mapa', vista);
-  activarBuscador(container);
+  container.querySelector('#layout-buscar').addEventListener('input', (e) => {
+    buscar(e.target.value, container);
+  });
+
+  pintar('mapa', vista, container);
 }
 
-function pintarVista(cual, destino) {
-  if (cual === 'mapa') vistaMapa(destino);
-  else if (cual === 'tresd') vista3D(destino);
-  else if (cual === 'tabla') vistaTabla(destino);
-  else vistaOcupacion(destino);
-}
-
-// ---------------------------------------------------------
-// Agrupación común
-// ---------------------------------------------------------
-function agruparPorZona() {
-  const zonas = new Map();
-  for (const f of datos) {
-    if (!zonas.has(f.zona_codigo)) {
-      zonas.set(f.zona_codigo, {
-        codigo: f.zona_codigo, nombre: f.zona, color: f.color_hex,
-        conservacion: f.tipo_conservacion, filas: [],
-      });
-    }
-    zonas.get(f.zona_codigo).filas.push(f);
+/** Libera la escena 3D al salir del módulo. */
+export function cerrarLayout() {
+  if (escena) {
+    escena.destruir();
+    escena = null;
   }
-  return zonas;
 }
 
-// ---------------------------------------------------------
-// Vista 1: mapa 2D
-// ---------------------------------------------------------
+function pintar(cual, vista, container) {
+  // La escena 3D ocupa memoria de la tarjeta gráfica: se suelta al
+  // cambiar de pestaña y se vuelve a crear si el usuario regresa.
+  if (cual !== 'tresd') cerrarLayout();
+
+  if (cual === 'mapa') vistaMapa(vista);
+  else if (cual === 'tresd') vista3D(vista);
+  else if (cual === 'tabla') vistaTabla(vista);
+  else if (cual === 'estructuras') vistaEstructuras(vista, container);
+  else vistaOcupacion(vista);
+}
+
+// =========================================================
+// Mapa 2D
+// =========================================================
+function claseCelda(p) {
+  if (!p.producto_id) return 'vacia';
+  if (Number(p.stock) <= 0) return 'sin-stock';
+  return 'ocupada';
+}
+
 function vistaMapa(destino) {
-  const zonas = agruparPorZona();
+  if (!estructuras.length) {
+    destino.innerHTML = `
+      <div class="aviso-migracion">
+        <h3>Todavía no hay muebles registrados</h3>
+        <p>Dé de alta las estanterías, frigoríficos y el mostrador en la pestaña
+        <b>Estructuras</b>. Cada mueble genera sus posiciones solo.</p>
+      </div>`;
+    return;
+  }
 
-  destino.innerHTML = `<div class="leyenda-mapa">
-      <span><i class="lg ocupada"></i> con producto</span>
-      <span><i class="lg sin-stock"></i> producto sin existencia</span>
-      <span><i class="lg vacia"></i> libre</span>
+  destino.innerHTML = `
+    <div class="leyenda-mapa">
+      <span><i class="pt ocupada"></i> Con producto y stock</span>
+      <span><i class="pt sin-stock"></i> Asignada pero sin stock</span>
+      <span><i class="pt vacia"></i> Libre</span>
+      <span class="leyenda-nota">El código se lee NAVE-MUEBLE-COLUMNA-NIVEL. Clic en una posición para ver su detalle.</span>
     </div>
-    <div class="mapa-market">` +
-    [...zonas.values()].map((zona) => {
-      const pasillos = new Map();
-      for (const f of zona.filas) {
-        if (!pasillos.has(f.pasillo)) pasillos.set(f.pasillo, new Map());
-        const p = pasillos.get(f.pasillo);
-        if (!p.has(f.estante)) p.set(f.estante, []);
-        p.get(f.estante).push(f);
+    <div class="mapa-local">
+      ${estructuras.map((e) => bloqueEstructura(e)).join('')}
+    </div>`;
+
+  destino.querySelectorAll('.celda').forEach((celda) => {
+    celda.addEventListener('click', () => abrirDetallePosicion(celda.dataset.codigo));
+  });
+}
+
+function bloqueEstructura(e) {
+  const suyas = posiciones.filter((p) => p.estructura_id === e.estructura_id);
+
+  // Se dibuja de arriba hacia abajo: el nivel más alto arriba, como en
+  // la percha real. Al revés obliga a leer el mapa al revés.
+  const niveles = [];
+  for (let n = e.niveles; n >= 1; n--) {
+    const fila = [];
+    for (let c = 1; c <= e.columnas; c++) {
+      const p = suyas.find((x) => x.columna === c && x.nivel === n);
+      if (!p) {
+        fila.push('<div class="celda faltante" title="Posición no generada"></div>');
+        continue;
       }
+      fila.push(`
+        <div class="celda ${claseCelda(p)}" data-codigo="${escapar(p.codigo)}"
+             title="${escapar(p.codigo)}${p.producto ? ' · ' + escapar(p.producto) : ' · libre'}">
+          <span class="celda-col">${String(c).padStart(2, '0')}</span>
+          ${p.producto ? `<span class="celda-prod">${escapar(recortar(p.producto, 18))}</span>` : ''}
+        </div>`);
+    }
+    niveles.push(`
+      <div class="nivel-fila">
+        <span class="nivel-etq" title="Nivel ${n}">${n}</span>
+        ${fila.join('')}
+      </div>`);
+  }
 
-      const pasillosHtml = [...pasillos.entries()].map(([pasillo, estantes]) => {
-        const estantesHtml = [...estantes.entries()].map(([estante, celdas]) => {
-          const niveles = celdas.sort((a, b) => b.nivel - a.nivel).map((c) => {
-            const ocupada = Boolean(c.producto_id);
-            const sinStock = ocupada && Number(c.stock) <= 0;
-            const clase = !ocupada ? 'vacia' : sinStock ? 'sin-stock' : 'ocupada';
-            return `<div class="celda ${clase}" data-ubicacion="${c.ubicacion}"
-                      title="${c.ubicacion} — ${ocupada ? c.producto : 'libre'}">
-                      <span class="celda-nivel">N${c.nivel}</span>
-                      <span class="celda-texto">${ocupada ? c.producto : 'libre'}</span>
-                      ${ocupada ? `<span class="celda-stock">${Number(c.stock).toFixed(0)}</span>` : ''}
-                    </div>`;
-          }).join('');
-          return `<div class="estante">
-                    <div class="estante-label">E${String(estante).padStart(2, '0')}</div>${niveles}
-                  </div>`;
-        }).join('');
-        return `<div class="pasillo">
-                  <div class="pasillo-label">Pasillo ${pasillo}</div>
-                  <div class="estantes">${estantesHtml}</div>
-                </div>`;
-      }).join('');
+  const claseTemp = e.temperatura === 'REFRIGERADO' ? 'frio'
+                  : e.temperatura === 'CONGELADO' ? 'congelado' : '';
 
-      return `<section class="zona" style="--zona-color:${zona.color}">
-                <header class="zona-head">
-                  <span class="zona-badge">${zona.codigo}</span>
-                  <h3>${zona.nombre}</h3>
-                  <span class="zona-cons">${zona.conservacion}</span>
-                </header>
-                <div class="pasillos">${pasillosHtml}</div>
-              </section>`;
-    }).join('') + '</div>';
-
-  destino.querySelectorAll('.celda.ocupada, .celda.sin-stock').forEach((celda) => {
-    celda.addEventListener('click', () => detalleUbicacion(celda.dataset.ubicacion));
-  });
+  return `
+    <section class="zona estructura-2d ${claseTemp}" data-literal="${escapar(e.literal)}">
+      <header class="estructura-cabecera">
+        <span class="estructura-literal">${escapar(e.literal)}</span>
+        <div>
+          <b>${escapar(e.nombre)}</b>
+          <small>${escapar(e.tipo_nombre)} · ${e.columnas} columnas × ${e.niveles} niveles</small>
+        </div>
+        <span class="estructura-ocupacion" title="Posiciones con producto asignado">
+          ${e.ocupacion_pct}%
+        </span>
+      </header>
+      <div class="estructura-rejilla">${niveles.join('')}</div>
+    </section>`;
 }
 
-// ---------------------------------------------------------
-// Vista 2: 3D en perspectiva.
-// Se dibuja con transformaciones CSS 3D en vez de una librería
-// como three.js: no agrega dependencias, funciona sin conexión y
-// es suficiente para leer altura de nivel y profundidad de pasillo.
-// ---------------------------------------------------------
-function vista3D(destino) {
-  const zonas = agruparPorZona();
-
+// =========================================================
+// Vista 3D
+// =========================================================
+async function vista3D(destino) {
   destino.innerHTML = `
-    <div class="panel controles-3d">
-      <label>Giro horizontal <input type="range" id="rot-y" min="-60" max="60" value="-28" /></label>
-      <label>Inclinación <input type="range" id="rot-x" min="0" max="60" value="22" /></label>
-      <label>Zoom <input type="range" id="zoom-3d" min="40" max="160" value="115" /></label>
-      <select id="zona-3d">${[...zonas.values()].map((z) => `<option value="${z.codigo}">${z.nombre}</option>`).join('')}</select>
-      <span class="nota">Arrastra los controles para girar la estantería. Haz clic en una caja para ver su contenido.</span>
-    </div>
-    <div class="escena-3d"><div class="mundo-3d" id="mundo"><div class="grupo-3d" id="grupo"></div></div></div>
-  `;
+    <div class="panel panel-3d">
+      <div class="barra-3d">
+        <div class="vistas-3d">
+          <button class="btn-vista activa" data-vista="general">Vista general</button>
+          <button class="btn-vista" data-vista="frente">De frente</button>
+          <button class="btn-vista" data-vista="pasillo">Desde el pasillo</button>
+          <button class="btn-vista" data-vista="planta">Planta</button>
+        </div>
+        <span class="ayuda-3d">Arrastre para girar · rueda para acercar · clic derecho para desplazar</span>
+      </div>
+      <div id="lienzo-3d" class="lienzo-3d"><p class="loading">Preparando la escena…</p></div>
+      <div id="detalle-3d" class="detalle-3d">
+        Haga clic en cualquier posición para ver qué hay ahí.
+      </div>
+    </div>`;
 
-  const mundo = destino.querySelector('#mundo');
-  const grupo = destino.querySelector('#grupo');
-  const selZona = destino.querySelector('#zona-3d');
+  const lienzo = destino.querySelector('#lienzo-3d');
+  const detalle = destino.querySelector('#detalle-3d');
 
-  function dibujar() {
-    const zona = zonas.get(selZona.value);
-    if (!zona) return;
+  try {
+    const { crearEscena } = await import('./lib/escena3d.js');
+    lienzo.innerHTML = '';
 
-    const pasillos = [...new Set(zona.filas.map((f) => f.pasillo))].sort();
-    const ANCHO = 74, ALTO = 40, PROF = 92;
+    escena = await crearEscena(lienzo, {
+      alSeleccionar: (info) => {
+        if (!info) {
+          detalle.innerHTML = 'Haga clic en cualquier posición para ver qué hay ahí.';
+          detalle.className = 'detalle-3d';
+          return;
+        }
+        detalle.className = 'detalle-3d con-dato';
+        detalle.innerHTML = info.producto
+          ? `<code class="pos-codigo">${escapar(info.codigo)}</code>
+             <b>${escapar(info.producto)}</b>
+             <span>${escapar(info.producto_codigo ?? '')} ·
+               ${escapar(info.categoria ?? 'sin categoría')} ·
+               stock ${Number(info.stock ?? 0).toFixed(2)} ${escapar(info.unidad ?? '')}</span>
+             <button class="btn-mini" data-ver="${escapar(info.codigo)}">Ver detalle</button>`
+          : `<code class="pos-codigo">${escapar(info.codigo)}</code>
+             <b>Posición libre</b>
+             <span>${escapar(info.estructura)} · columna ${info.columna}, nivel ${info.nivel}</span>`;
 
-    const maxEstante = Math.max(...zona.filas.map((f) => f.estante));
-    const maxNivel = Math.max(...zona.filas.map((f) => f.nivel));
-
-    // La escena se centra en el origen calculando la extensión real que
-    // ocupan las cajas. Sin esto el conjunto crece hacia la derecha y hacia
-    // abajo desde el origen y se sale de cuadro al rotar.
-    //   X: de 0 a (maxEstante-1)*paso + ancho de caja
-    //   Y: de -(maxNivel-1)*paso a +alto de caja (los niveles suben)
-    //   Z: de -(pasillos-1)*profundidad a 0
-    const anchoTotal = (maxEstante - 1) * (ANCHO + 8) + ANCHO;
-    const centroY = ((maxNivel - 1) * (ALTO + 4) - ALTO) / 2;
-    const centroZ = ((pasillos.length - 1) * PROF) / 2;
-    grupo.style.transform =
-      `translate3d(${-anchoTotal / 2}px, ${centroY}px, ${centroZ}px)`;
-
-    grupo.innerHTML = zona.filas.map((f) => {
-      const x = (f.estante - 1) * (ANCHO + 8);
-      const y = -(f.nivel - 1) * (ALTO + 4);
-      const z = pasillos.indexOf(f.pasillo) * PROF;
-      const ocupada = Boolean(f.producto_id);
-      const sinStock = ocupada && Number(f.stock) <= 0;
-      const clase = !ocupada ? 'vacia' : sinStock ? 'sin-stock' : 'ocupada';
-      return `<div class="caja-3d ${clase}" data-ubicacion="${f.ubicacion}"
-                style="transform: translate3d(${x}px, ${y}px, ${-z}px)"
-                title="${f.ubicacion} — ${ocupada ? f.producto : 'libre'}">
-                <span class="caja-cod">${f.ubicacion}</span>
-                <span class="caja-prod">${ocupada ? f.producto : ''}</span>
-              </div>`;
-    }).join('') +
-    // Un piso por pasillo, dimensionado al ancho real de la estantería
-    pasillos.map((p, i) => `<div class="piso-3d"
-        style="width:${anchoTotal + 20}px; transform: translate3d(-10px, ${ALTO + 6}px, ${-i * PROF}px) rotateX(90deg)">
-        <span>Pasillo ${p}</span></div>`).join('');
-
-    grupo.querySelectorAll('.caja-3d.ocupada, .caja-3d.sin-stock').forEach((c) => {
-      c.addEventListener('click', () => detalleUbicacion(c.dataset.ubicacion));
+        detalle.querySelector('[data-ver]')?.addEventListener('click', (ev) => {
+          abrirDetallePosicion(ev.target.dataset.ver);
+        });
+      },
     });
+
+    escena.actualizar(estructuras, posiciones);
+
+    destino.querySelectorAll('.btn-vista').forEach((b) => {
+      b.addEventListener('click', () => {
+        destino.querySelectorAll('.btn-vista').forEach((x) => x.classList.remove('activa'));
+        b.classList.add('activa');
+        escena?.vista(b.dataset.vista);
+      });
+    });
+
+  } catch (err) {
+    // Un equipo viejo sin aceleración de vídeo no puede dibujar WebGL.
+    // Antes que dejar un cuadro negro sin explicación, se dice qué pasó
+    // y se manda al usuario al mapa 2D, que muestra la misma información.
+    console.error(err);
+    lienzo.innerHTML = `
+      <div class="aviso-migracion">
+        <h3>Este equipo no puede dibujar la vista 3D</h3>
+        <p class="nota">${escapar(err.message)}</p>
+        <p class="nota">Suele pasar en computadoras sin aceleración de vídeo o con el
+        navegador muy desactualizado. La pestaña <b>Mapa del local</b> muestra
+        exactamente la misma información en dos dimensiones.</p>
+      </div>`;
   }
-
-  function aplicarTransformacion() {
-    const ry = destino.querySelector('#rot-y').value;
-    const rx = destino.querySelector('#rot-x').value;
-    const zoom = destino.querySelector('#zoom-3d').value / 100;
-    mundo.style.transform = `scale(${zoom}) rotateX(${rx}deg) rotateY(${ry}deg)`;
-  }
-
-  ['#rot-y', '#rot-x', '#zoom-3d'].forEach((sel) =>
-    destino.querySelector(sel).addEventListener('input', aplicarTransformacion)
-  );
-  selZona.addEventListener('change', dibujar);
-
-  dibujar();
-  aplicarTransformacion();
 }
 
-// ---------------------------------------------------------
-// Vista 3: tabla dinámica de posiciones
-// ---------------------------------------------------------
+// =========================================================
+// Tabla de posiciones
+// =========================================================
+function filasTabla() {
+  return posiciones.map((p) => ({
+    codigo: p.codigo,
+    estructura: `${p.literal} · ${p.estructura}`,
+    columna: String(p.columna).padStart(2, '0'),
+    nivel: p.nivel,
+    producto: p.producto ?? 'Libre',
+    producto_codigo: p.producto_codigo ?? '—',
+    categoria: p.categoria ?? '—',
+    stock: p.producto_id ? Number(p.stock).toFixed(2) : '—',
+    unidad: p.producto_id ? (p.unidad ?? '') : '',
+    temperatura: p.temperatura,
+  }));
+}
+
+const COLUMNAS_TABLA = [
+  { key: 'codigo', label: 'Posición' },
+  { key: 'estructura', label: 'Mueble' },
+  { key: 'columna', label: 'Col.' },
+  { key: 'nivel', label: 'Nivel' },
+  { key: 'producto', label: 'Producto' },
+  { key: 'producto_codigo', label: 'Código' },
+  { key: 'categoria', label: 'Categoría' },
+  { key: 'stock', label: 'Stock', numeric: true },
+  { key: 'unidad', label: 'Unidad' },
+];
+
 function vistaTabla(destino) {
-  destino.innerHTML = '<div id="tabla-posiciones"></div>';
+  destino.innerHTML = `
+    <div class="panel">
+      <div class="panel-cabecera">
+        <h3>Todas las posiciones</h3>
+        ${botonesExportar('pos')}
+      </div>
+      <p class="nota">El código se lee de izquierda a derecha: nave, mueble, columna
+      y nivel. <code>ECM-A-01-1</code> es el nivel 1 de la primera columna de la
+      estantería A en la matriz.</p>
+    </div>
+    <div id="tabla-posiciones"></div>`;
+
   renderTable(destino.querySelector('#tabla-posiciones'), {
+    columns: COLUMNAS_TABLA,
+    rows: filasTabla(),
+    searchable: true,
+    rowClass: (r) => (r.producto === 'Libre' ? 'row-warning' : ''),
+    emptyMessage: 'No hay posiciones registradas.',
+  });
+
+  conectarExportar(destino, 'pos',
+    () => ({ columnas: COLUMNAS_TABLA, filas: filasTabla() }),
+    'Posiciones del local',
+    () => metaDeEmpresa(empresaActual()));
+}
+
+// =========================================================
+// Estructuras
+// =========================================================
+async function vistaEstructuras(destino, container) {
+  const { data: tipos } = await supabase
+    .from('tipos_estructura').select('*').order('orden');
+
+  destino.innerHTML = `
+    <div class="panel">
+      <h3>Agregar un mueble</h3>
+      <p class="nota">El literal se asigna solo: las estanterías toman la siguiente
+      letra libre (A, B, C…) y los frigoríficos, neveras y mostradores el siguiente
+      número de su prefijo (FR1, FR2…). Puede escribirlo a mano si prefiere otro.</p>
+      <form id="form-estructura" class="inline-form">
+        <select id="es-tipo" required>
+          ${(tipos ?? []).map((t) =>
+            `<option value="${t.codigo}" data-cols="${t.columnas_defecto}" data-niv="${t.niveles_defecto}">
+               ${escapar(t.nombre)}
+             </option>`).join('')}
+        </select>
+        <input type="text" id="es-nombre" placeholder="Nombre del mueble" required />
+        <input type="text" id="es-literal" placeholder="Literal (opcional)" maxlength="4"
+               pattern="[A-Za-z]{1,3}[0-9]{0,2}" />
+        <input type="number" id="es-cols" min="1" max="99" value="4" title="Columnas" />
+        <input type="number" id="es-niv" min="1" max="9" value="4" title="Niveles" />
+        <button type="submit">Crear mueble</button>
+        <span id="es-msg" class="form-msg"></span>
+      </form>
+      <p class="nota" id="es-descripcion"></p>
+    </div>
+    <div id="tabla-estructuras"></div>`;
+
+  const sel = destino.querySelector('#es-tipo');
+  const desc = destino.querySelector('#es-descripcion');
+
+  function refrescarTipo() {
+    const op = sel.selectedOptions[0];
+    destino.querySelector('#es-cols').value = op?.dataset.cols ?? 4;
+    destino.querySelector('#es-niv').value = op?.dataset.niv ?? 4;
+    const t = (tipos ?? []).find((x) => x.codigo === sel.value);
+    desc.textContent = t ? `${t.descripcion} Medidas típicas: ${t.ancho_cm} × ${t.alto_cm} × ${t.fondo_cm} cm.` : '';
+  }
+  sel.addEventListener('change', refrescarTipo);
+  refrescarTipo();
+
+  destino.querySelector('#form-estructura').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msg = destino.querySelector('#es-msg');
+    msg.textContent = 'Creando…';
+    msg.className = 'form-msg';
+
+    const { error } = await supabase.rpc('fn_crear_estructura', {
+      p_tipo: sel.value,
+      p_nombre: destino.querySelector('#es-nombre').value.trim(),
+      p_literal: destino.querySelector('#es-literal').value.trim() || null,
+      p_columnas: Number(destino.querySelector('#es-cols').value),
+      p_niveles: Number(destino.querySelector('#es-niv').value),
+    });
+
+    if (error) {
+      msg.textContent = error.message;
+      msg.className = 'form-msg error';
+      return;
+    }
+    msg.textContent = 'Mueble creado con sus posiciones.';
+    msg.className = 'form-msg ok';
+    await renderLayout(container);
+  });
+
+  renderTable(destino.querySelector('#tabla-estructuras'), {
     columns: [
-      { key: 'ubicacion', label: 'Ubicación' },
-      { key: 'zona', label: 'Zona' },
-      { key: 'pasillo', label: 'Pasillo' },
-      { key: 'estante', label: 'Estante', numeric: true },
-      { key: 'nivel', label: 'Nivel', numeric: true },
-      { key: 'producto_codigo', label: 'Código' },
-      { key: 'producto', label: 'Producto' },
-      { key: 'ean13', label: 'EAN-13' },
-      { key: 'stock', label: 'Stock', numeric: true, format: (v) => Number(v ?? 0).toFixed(2) },
-      { key: 'porcentaje_ocupacion', label: '% ocupación', numeric: true,
-        format: (v) => (v === null || v === undefined ? '—' : `${Number(v).toFixed(1)}%`) },
-      { key: 'estado', label: 'Estado' },
+      { key: 'literal', label: 'Literal' },
+      { key: 'nombre', label: 'Nombre' },
+      { key: 'tipo_nombre', label: 'Tipo' },
+      { key: 'medida', label: 'Columnas × niveles' },
+      { key: 'posiciones', label: 'Posiciones', numeric: true },
+      { key: 'ocupacion_pct', label: 'Ocupación %', numeric: true },
+      { key: 'acciones', label: 'Cambiar tamaño' },
     ],
-    rows: datos.map((f) => ({
-      ...f,
-      producto: f.producto ?? '(libre)',
-      producto_codigo: f.producto_codigo ?? '—',
-      ean13: f.ean13 ?? '—',
-      estado: !f.producto_id ? 'Libre' : Number(f.stock) <= 0 ? 'Sin existencia' : 'Con producto',
+    rows: estructuras.map((e) => ({
+      ...e,
+      medida: `${e.columnas} × ${e.niveles}`,
+      acciones: '',
     })),
-    rowClass: (r) =>
-      r.estado === 'Sin existencia' ? 'row-warning' : r.estado === 'Libre' ? '' : 'row-ok',
-    emptyMessage: 'No hay ubicaciones registradas.',
+    searchable: true,
+    emptyMessage: 'No hay muebles registrados.',
+  });
+
+  destino.querySelectorAll('#tabla-estructuras tbody tr').forEach((tr, i) => {
+    const e = estructuras[i];
+    if (!e) return;
+    tr.lastElementChild.innerHTML =
+      `<button class="btn-mini" data-redim="${e.estructura_id}">Columnas / niveles</button>`;
+  });
+
+  destino.querySelectorAll('[data-redim]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const e = estructuras.find((x) => x.estructura_id === btn.dataset.redim);
+      if (e) abrirRedimensionar(e, container);
+    });
   });
 }
 
-// ---------------------------------------------------------
-// Vista 4: análisis de ocupación
-// Barras horizontales de una sola serie (magnitud comparada entre
-// zonas). Una serie = sin leyenda; el título nombra la medida y cada
-// barra lleva su valor como etiqueta directa.
-// ---------------------------------------------------------
+function abrirRedimensionar(e, container) {
+  abrirModal({
+    titulo: `${e.literal} — ${e.nombre}`,
+    contenido: `
+      <p class="nota">Crecer agrega las posiciones nuevas al instante. Encoger solo
+      se permite si las posiciones que desaparecen están vacías: si alguna tiene
+      producto, el sistema dice cuál y no borra nada.</p>
+      <div class="redim-campos">
+        <label>Columnas
+          <input type="number" id="rd-cols" min="1" max="99" value="${e.columnas}" />
+        </label>
+        <label>Niveles
+          <input type="number" id="rd-niv" min="1" max="9" value="${e.niveles}" />
+        </label>
+        <div class="redim-total">
+          Posiciones: <b id="rd-total">${e.columnas * e.niveles}</b>
+          <small>(hoy ${e.posiciones}, ${e.posiciones_ocupadas} con producto)</small>
+        </div>
+      </div>
+      <div id="rd-msg" class="form-msg"></div>`,
+    botones: [
+      { texto: 'Cancelar', clase: 'btn-secundario', accion: cerrarModal },
+      { texto: 'Aplicar', clase: 'btn-primary', accion: aplicar },
+    ],
+    alAbrir: (modal) => {
+      const recalcular = () => {
+        modal.querySelector('#rd-total').textContent =
+          Number(modal.querySelector('#rd-cols').value) *
+          Number(modal.querySelector('#rd-niv').value);
+      };
+      modal.querySelector('#rd-cols').addEventListener('input', recalcular);
+      modal.querySelector('#rd-niv').addEventListener('input', recalcular);
+    },
+  });
+
+  async function aplicar() {
+    const modal = document.querySelector('.modal');
+    const msg = modal.querySelector('#rd-msg');
+    msg.textContent = 'Aplicando…';
+    msg.className = 'form-msg';
+
+    const { error } = await supabase.rpc('fn_redimensionar_estructura', {
+      p_estructura_id: e.estructura_id,
+      p_columnas: Number(modal.querySelector('#rd-cols').value),
+      p_niveles: Number(modal.querySelector('#rd-niv').value),
+    });
+
+    if (error) {
+      msg.textContent = error.message;
+      msg.className = 'form-msg error';
+      return;
+    }
+    cerrarModal();
+    await renderLayout(container);
+  }
+}
+
+// =========================================================
+// Ocupación
+// =========================================================
 function vistaOcupacion(destino) {
-  const zonas = agruparPorZona();
+  const ordenadas = [...estructuras].sort((a, b) => b.ocupacion_pct - a.ocupacion_pct);
 
-  const resumen = [...zonas.values()].map((z) => {
-    const ubicaciones = new Set(z.filas.map((f) => f.ubicacion_id)).size;
-    const ocupadas = new Set(z.filas.filter((f) => f.producto_id).map((f) => f.ubicacion_id)).size;
-    const sinStock = z.filas.filter((f) => f.producto_id && Number(f.stock) <= 0).length;
-    const unidades = z.filas.reduce((a, f) => a + Number(f.stock || 0), 0);
-    const pct = ubicaciones ? (ocupadas / ubicaciones) * 100 : 0;
-    return {
-      zona: z.nombre, codigo: z.codigo, conservacion: z.conservacion,
-      ubicaciones, ocupadas, libres: ubicaciones - ocupadas, sinStock, unidades, pct,
-      estado: pct >= 90 ? 'Saturada' : pct >= 70 ? 'Alta' : pct >= 30 ? 'Holgada' : 'Subutilizada',
-    };
-  }).sort((a, b) => b.pct - a.pct);
+  const estado = (pct) =>
+    pct >= 95 ? 'Saturada' : pct >= 75 ? 'Alta' : pct >= 35 ? 'Holgada' : 'Subutilizada';
 
-  const maxPct = Math.max(100, ...resumen.map((r) => r.pct));
+  const filas = ordenadas.map((e) => ({
+    literal: e.literal,
+    nombre: e.nombre,
+    tipo: e.tipo_nombre,
+    posiciones: e.posiciones,
+    ocupadas: e.posiciones_ocupadas,
+    libres: e.posiciones - e.posiciones_ocupadas,
+    ocupacion: `${e.ocupacion_pct}%`,
+    estado: estado(Number(e.ocupacion_pct)),
+  }));
+
+  const columnas = [
+    { key: 'literal', label: 'Literal' },
+    { key: 'nombre', label: 'Mueble' },
+    { key: 'tipo', label: 'Tipo' },
+    { key: 'posiciones', label: 'Posiciones', numeric: true },
+    { key: 'ocupadas', label: 'Ocupadas', numeric: true },
+    { key: 'libres', label: 'Libres', numeric: true },
+    { key: 'ocupacion', label: 'Ocupación' },
+    { key: 'estado', label: 'Estado' },
+  ];
 
   destino.innerHTML = `
-    <div class="panel viz-root">
-      <h3>Ocupación de ubicaciones por zona</h3>
-      <p class="nota">Porcentaje de posiciones que tienen un producto asignado, sobre el total de posiciones de la zona.</p>
+    <div class="panel">
+      <div class="panel-cabecera">
+        <h3>Qué tan llenos están los muebles</h3>
+        ${botonesExportar('ocu')}
+      </div>
+      <p class="nota">El valor va como etiqueta sobre cada barra: leer una barra
+      contra un eje obliga a estimar, y aquí el número exacto importa.</p>
       <div class="barras-ocupacion">
-        ${resumen.map((r) => `
+        ${ordenadas.map((e) => `
           <div class="barra-fila">
-            <span class="barra-etiqueta" title="${r.zona}">${r.codigo} · ${r.zona}</span>
+            <span class="barra-etq" title="${escapar(e.nombre)}">
+              ${escapar(e.literal)} · ${escapar(recortar(e.nombre, 26))}
+            </span>
             <div class="barra-pista">
-              <div class="barra-valor" style="width:${(r.pct / maxPct) * 100}%"></div>
+              <div class="barra-valor ${Number(e.ocupacion_pct) >= 95 ? 'saturada' : ''}"
+                   style="width:${Math.max(Number(e.ocupacion_pct), 1.5)}%"></div>
             </div>
-            <span class="barra-numero">${r.pct.toFixed(0)}%</span>
+            <span class="barra-numero">${e.ocupacion_pct}%</span>
           </div>`).join('')}
       </div>
     </div>
-
-    <div class="panel">
-      <h3>Detalle por zona</h3>
-      <div id="tabla-ocupacion"></div>
-    </div>
-  `;
+    <div id="tabla-ocupacion"></div>`;
 
   renderTable(destino.querySelector('#tabla-ocupacion'), {
-    columns: [
-      { key: 'codigo', label: 'Zona' },
-      { key: 'zona', label: 'Nombre' },
-      { key: 'conservacion', label: 'Conservación' },
-      { key: 'ubicaciones', label: 'Posiciones', numeric: true },
-      { key: 'ocupadas', label: 'Ocupadas', numeric: true },
-      { key: 'libres', label: 'Libres', numeric: true },
-      { key: 'sinStock', label: 'Sin existencia', numeric: true },
-      { key: 'unidades', label: 'Unidades', numeric: true, format: (v) => Number(v).toFixed(0) },
-      { key: 'pctTexto', label: '% ocupación', numeric: false },
-      { key: 'estado', label: 'Estado' },
-    ],
-    rows: resumen.map((r) => ({ ...r, pctTexto: `${r.pct.toFixed(1)}%` })),
-    searchable: false,
-    rowClass: (r) => (r.estado === 'Saturada' ? 'row-warning' : ''),
-    emptyMessage: 'Sin zonas registradas.',
+    columns: columnas,
+    rows: filas,
+    rowClass: (r) => (r.estado === 'Saturada' ? 'row-error'
+                    : r.estado === 'Subutilizada' ? 'row-warning' : ''),
+    emptyMessage: 'No hay muebles registrados.',
+  });
+
+  conectarExportar(destino, 'ocu',
+    () => ({ columnas, filas }),
+    'Ocupación por mueble',
+    () => metaDeEmpresa(empresaActual()));
+}
+
+// =========================================================
+// Búsqueda y detalle
+// =========================================================
+function buscar(texto, container) {
+  const salida = container.querySelector('#layout-resultado-busqueda');
+  const t = texto.trim().toLowerCase();
+
+  container.querySelectorAll('.celda.resaltada').forEach((c) => c.classList.remove('resaltada'));
+
+  if (t.length < 2) {
+    salida.innerHTML = '';
+    return;
+  }
+
+  const hallados = posiciones.filter((p) =>
+    (p.producto ?? '').toLowerCase().includes(t) ||
+    (p.marca ?? '').toLowerCase().includes(t) ||
+    (p.producto_codigo ?? '').toLowerCase().includes(t) ||
+    (p.codigo ?? '').toLowerCase().includes(t));
+
+  if (!hallados.length) {
+    salida.innerHTML = '<span class="sin-resultado">Nada con ese nombre o código.</span>';
+    return;
+  }
+
+  salida.innerHTML = hallados.slice(0, 12).map((p) => `
+    <button class="chip-ubicacion" data-codigo="${escapar(p.codigo)}">
+      <code>${escapar(p.codigo)}</code>
+      <span>${escapar(p.producto ?? 'libre')}</span>
+    </button>`).join('') +
+    (hallados.length > 12 ? `<span class="sin-resultado">y ${hallados.length - 12} más…</span>` : '');
+
+  for (const p of hallados) {
+    container.querySelector(`.celda[data-codigo="${cssEscapar(p.codigo)}"]`)
+      ?.classList.add('resaltada');
+  }
+
+  salida.querySelectorAll('.chip-ubicacion').forEach((b) => {
+    b.addEventListener('click', () => abrirDetallePosicion(b.dataset.codigo));
   });
 }
 
-// ---------------------------------------------------------
-// Buscador de ubicación
-// ---------------------------------------------------------
-function activarBuscador(container) {
-  const buscador = container.querySelector('#layout-buscar');
-  const resultado = container.querySelector('#layout-resultado-busqueda');
-
-  buscador.addEventListener('input', () => {
-    const texto = buscador.value.trim().toLowerCase();
-    container.querySelectorAll('.celda, .caja-3d').forEach((c) => c.classList.remove('resaltada'));
-
-    if (texto.length < 2) {
-      resultado.innerHTML = '';
-      return;
-    }
-
-    const encontrados = datos.filter(
-      (f) => f.producto_id &&
-        (f.producto?.toLowerCase().includes(texto) ||
-         f.producto_codigo?.toLowerCase().includes(texto) ||
-         f.ean13 === buscador.value.trim())
-    );
-
-    resultado.innerHTML = encontrados.length
-      ? `<div class="resultados-ubicacion">${encontrados.slice(0, 10).map((f) =>
-          `<div class="resultado-item">
-             <b>${f.producto}</b>
-             <span class="ubicacion-chip">${f.ubicacion}</span>
-             <span class="resultado-meta">${f.zona} · stock ${Number(f.stock).toFixed(2)}</span>
-           </div>`).join('')}</div>`
-      : '<p class="nota">Sin coincidencias.</p>';
-
-    encontrados.forEach((f) => {
-      container.querySelectorAll(`[data-ubicacion="${f.ubicacion}"]`)
-        .forEach((el) => el.classList.add('resaltada'));
-    });
-    if (encontrados.length === 1) {
-      container.querySelector(`.celda[data-ubicacion="${encontrados[0].ubicacion}"]`)
-        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-  });
-}
-
-// ---------------------------------------------------------
-// Detalle de una ubicación
-// ---------------------------------------------------------
-async function detalleUbicacion(codigoUbicacion) {
-  const fila = datos.find((f) => f.ubicacion === codigoUbicacion && f.producto_id);
-  if (!fila) return;
-
-  const { data: lotes } = await supabase
-    .from('lotes')
-    .select('codigo_lote, fecha_caducidad, cantidad_disponible, costo_unitario')
-    .eq('producto_id', fila.producto_id)
-    .gt('cantidad_disponible', 0)
-    .order('fecha_caducidad', { nullsFirst: false });
+async function abrirDetallePosicion(codigo) {
+  const p = posiciones.find((x) => x.codigo === codigo);
+  if (!p) return;
 
   abrirModal({
-    titulo: `${fila.ubicacion} — ${fila.producto}`,
+    titulo: `Posición ${codigo}`,
     contenido: `
-      <div class="detalle-ubicacion">
-        <div class="comp-linea"><span>Zona</span><b>${fila.zona}</b></div>
-        <div class="comp-linea"><span>Pasillo / Estante / Nivel</span><b>${fila.pasillo} · E${fila.estante} · N${fila.nivel}</b></div>
-        <div class="comp-linea"><span>Código</span><b>${fila.producto_codigo}</b></div>
-        <div class="comp-linea"><span>EAN-13</span><b>${fila.ean13 ?? '—'}</b></div>
-        <div class="comp-linea"><span>Stock</span><b>${Number(fila.stock).toFixed(2)}</b></div>
-        <div class="comp-linea"><span>Ocupación de la posición</span><b>${fila.porcentaje_ocupacion ?? '—'}%</b></div>
+      <div class="comprobante">
+        <div class="comp-linea"><span>Mueble</span><b>${escapar(p.literal)} · ${escapar(p.estructura)}</b></div>
+        <div class="comp-linea"><span>Columna / nivel</span><b>${String(p.columna).padStart(2, '0')} / ${p.nivel}</b></div>
+        <div class="comp-linea"><span>Conservación</span><b>${escapar(p.temperatura)}</b></div>
+        ${p.producto ? `
+          <div class="comp-linea"><span>Producto</span><b>${escapar(p.producto)}</b></div>
+          <div class="comp-linea"><span>Código</span><b>${escapar(p.producto_codigo ?? '')}</b></div>
+          <div class="comp-linea"><span>Categoría</span><b>${escapar(p.categoria ?? '—')}</b></div>
+          <div class="comp-linea grande"><span>Stock</span>
+            <b>${Number(p.stock).toFixed(2)} ${escapar(p.unidad ?? '')}</b></div>
+        ` : '<p class="nota">Esta posición está libre.</p>'}
+      </div>
+      <div id="lotes-posicion">${p.producto_id ? '<p class="loading">Cargando lotes…</p>' : ''}</div>`,
+    botones: [{ texto: 'Cerrar', clase: 'btn-primary', accion: cerrarModal }],
+    alAbrir: async (modal) => {
+      if (!p.producto_id) return;
+      const caja = modal.querySelector('#lotes-posicion');
+
+      const { data, error } = await supabase
+        .from('v_lotes_disponibles')
+        .select('codigo_lote, fecha_caducidad, cantidad_disponible')
+        .eq('producto_id', p.producto_id)
+        .limit(20);
+
+      if (error) {
+        caja.innerHTML = '<p class="nota">No se pudieron leer los lotes.</p>';
+        return;
+      }
+      if (!data?.length) {
+        caja.innerHTML = '<p class="nota">Lotes disponibles: este producto no maneja lotes.</p>';
+        return;
+      }
+
+      caja.innerHTML = `
         <h4>Lotes disponibles</h4>
-        ${lotes?.length
-          ? `<table class="dyn-table"><thead><tr><th>Lote</th><th>Caducidad</th><th>Disponible</th></tr></thead>
-             <tbody>${lotes.map((l) => `<tr><td>${l.codigo_lote}</td><td>${l.fecha_caducidad ?? '—'}</td>
-               <td>${Number(l.cantidad_disponible).toFixed(2)}</td></tr>`).join('')}</tbody></table>
-             <p class="nota">El primero de la lista es el que sale al vender (FEFO).</p>`
-          : '<p class="nota">Este producto no maneja lotes o no tiene existencias.</p>'}
-      </div>`,
-    botones: [{ texto: 'Cerrar', clase: 'btn-secundario', accion: cerrarModal }],
+        <table class="dyn-table">
+          <thead><tr><th>Lote</th><th>Caduca</th><th>Disponible</th></tr></thead>
+          <tbody>
+            ${data.map((l) => `
+              <tr>
+                <td>${escapar(l.codigo_lote ?? '—')}</td>
+                <td>${l.fecha_caducidad
+                      ? new Date(l.fecha_caducidad + 'T00:00:00').toLocaleDateString('es-EC')
+                      : '—'}</td>
+                <td>${Number(l.cantidad_disponible).toFixed(2)}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>`;
+    },
   });
+}
+
+// =========================================================
+function recortar(t, n) {
+  const s = String(t ?? '');
+  return s.length > n ? s.slice(0, n - 1) + '…' : s;
+}
+
+function escapar(t) {
+  const d = document.createElement('div');
+  d.textContent = t ?? '';
+  return d.innerHTML.replace(/"/g, '&quot;');
+}
+
+function cssEscapar(t) {
+  return String(t ?? '').replace(/["\\]/g, '\\$&');
 }
