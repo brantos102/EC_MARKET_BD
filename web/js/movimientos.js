@@ -12,7 +12,7 @@ export async function renderMovimientos(container) {
         <option value="AJUSTE_POSITIVO">Ajuste (+)</option>
         <option value="AJUSTE_NEGATIVO">Ajuste (-)</option>
       </select>
-      <input type="number" id="mov-cantidad" placeholder="Cantidad" min="0.0001" step="0.0001" required />
+      <input type="number" id="mov-cantidad" placeholder="Cantidad" min="0.001" step="0.001" required />
       <input type="number" id="mov-costo" placeholder="Costo unitario (solo Entrada)" min="0" step="0.0001" />
       <input type="text" id="mov-referencia" placeholder="Referencia (factura/guía)" />
       <button type="submit">Registrar movimiento</button>

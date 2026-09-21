@@ -383,10 +383,152 @@ with sync_playwright() as p:
     pagina.wait_for_timeout(500)
     revisar("al hacer clic en una posición abre su detalle",
             "ECM-A-01-1" in pagina.inner_text(".modal-head"))
+
+    # El detalle tiene que contestar todo lo que se pregunta de pie
+    # frente a la percha, sin ir a otra pantalla.
+    cuerpo = pagina.inner_text(".modal-cuerpo")
+    revisar("el detalle da la dirección completa, con calle",
+            "Calle" in cuerpo, f"(dice '{cuerpo[:80]}')")
+    for dato in ["Existencia", "Precio al público", "Precio al por mayor", "Costo promedio",
+                 "Valor en esta posición"]:
+        revisar(f"el detalle muestra «{dato}»", dato in cuerpo)
     revisar("el detalle muestra los lotes del producto",
             "Lotes disponibles" in pagina.inner_text(".modal"))
+    revisar("y en qué presentaciones está contado",
+            "Cómo está contado" in cuerpo)
+
+    # Desde la percha se puede cargar a la venta o pedir al proveedor,
+    # que es lo que hace el operador con el cliente delante.
+    revisar("desde la posición se puede sumar el producto a la venta",
+            "Sumar a la venta" in pagina.inner_text(".modal-pie"))
+    revisar("y pedirlo al proveedor sin salir de aquí",
+            "Pedir al proveedor" in pagina.inner_text(".modal-pie"))
+
+    pagina.click('.modal-pie button:has-text("Pedir al proveedor")')
+    pagina.wait_for_selector("#dp-proveedor", timeout=5000)
+    pagina.wait_for_timeout(500)
+    revisar("el pedido propone una cantidad y deja elegir proveedor",
+            pagina.is_visible("#dp-cantidad") and pagina.is_visible("#dp-proveedor"))
+    pagina.click("#dp-enviar")
+    pagina.wait_for_timeout(700)
+    orden = next((e for e in pagina.evaluate("window.__ESCRITURAS")
+                  if e["tabla"] == "rpc:fn_crear_orden_compra"), None)
+    revisar("y se crea la orden de compra con ese producto",
+            orden is not None
+            and orden["payload"]["p_items"][0]["producto_id"] == "prod-limon",
+            f"({orden['payload'] if orden else 'no se llamó'})")
+    revisar("la orden deja anotado desde qué posición se pidió",
+            orden is not None and "ECM-A-01-1" in (orden["payload"].get("p_observaciones") or ""))
+
     pagina.click(".modal-cerrar")
     pagina.wait_for_timeout(200)
+
+    # ---------------------------------------------------------
+    # El plano se dibujaba con los muebles en fila porque nadie le
+    # había dicho dónde están. Aquí se le dice, arrastrando sobre la
+    # planta; el 3D lee las mismas coordenadas.
+    print("\n--- Acomodar el local: arrastrar los muebles")
+    pagina.click('.tab[data-v="acomodar"]')
+    pagina.wait_for_selector(".plano-mueble", timeout=10000)
+    pagina.wait_for_timeout(500)
+
+    muebles = pagina.query_selector_all(".plano-mueble")
+    revisar("el plano dibuja un rectángulo por mueble",
+            len(muebles) == 3, f"({len(muebles)} muebles)")
+
+    # A escala: 1 cm del local son siempre los mismos píxeles, así que
+    # dos muebles de 120 cm se ven iguales y el pasillo que aparece es
+    # el pasillo que va a quedar.
+    proporcion = pagina.evaluate("""() => {
+      const lienzo = document.querySelector('.plano-lienzo');
+      const a = document.querySelector('.plano-mueble[data-tipo="ESTANTERIA"]');
+      const f = document.querySelector('.plano-mueble[data-tipo="FRIGORIFICO"]');
+      return {
+        escalaA: a.getBoundingClientRect().width / 120,
+        escalaF: f.getBoundingClientRect().width / 80,
+        anchoLienzo: lienzo.getBoundingClientRect().width,
+      };
+    }""")
+    revisar("todo está a la misma escala (estantería y frigorífico)",
+            abs(proporcion["escalaA"] - proporcion["escalaF"]) < 0.02,
+            f"({proporcion['escalaA']:.3f} vs {proporcion['escalaF']:.3f} px/cm)")
+
+    revisar("cada mueble muestra su literal",
+            "A" in pagina.inner_text('.plano-mueble[data-tipo="ESTANTERIA"]'))
+    revisar("y la calle por la que se llega",
+            "Calle" in pagina.inner_text(".plano-lienzo"))
+
+    # Arrastrar
+    origen = pagina.eval_on_selector('.plano-mueble[data-tipo="FRIGORIFICO"]', """el => {
+      const r = el.getBoundingClientRect();
+      return {x: r.x + r.width/2, y: r.y + r.height/2, left: r.left, top: r.top};
+    }""")
+    pagina.mouse.move(origen["x"], origen["y"])
+    pagina.mouse.down()
+    pagina.mouse.move(origen["x"] + 60, origen["y"] + 80, steps=10)
+    pagina.mouse.up()
+    pagina.wait_for_timeout(500)
+
+    revisar("al soltarlo se puede guardar la posición",
+            not pagina.is_disabled("#ac-guardar"))
+    revisar("la ficha del mueble muestra sus datos",
+            "Frigorífico" in pagina.inner_text("#ac-ficha"),
+            f"(ficha: {pagina.inner_text('#ac-ficha')[:80]})")
+
+    pagina.click("#ac-guardar")
+    pagina.wait_for_timeout(700)
+    movimiento = next((e for e in pagina.evaluate("window.__ESCRITURAS")
+                       if e["tabla"] == "rpc:fn_mover_estructura"), None)
+    revisar("la posición se guarda contra la base, en centímetros",
+            movimiento is not None
+            and isinstance(movimiento["payload"]["p_x"], (int, float))
+            and movimiento["payload"]["p_x"] != 340,
+            f"({movimiento['payload'] if movimiento else 'no se llamó'})")
+    revisar("y se pega a la rejilla de 10 cm",
+            movimiento is not None and movimiento["payload"]["p_x"] % 10 == 0
+            and movimiento["payload"]["p_y"] % 10 == 0,
+            f"(x={movimiento['payload']['p_x']}, y={movimiento['payload']['p_y']})" if movimiento else "")
+
+    # Girar
+    antes_rot = pagina.evaluate("window.__ESCRITURAS.filter(e => e.tabla === 'rpc:fn_mover_estructura').length")
+    pagina.click("#ac-girar")
+    pagina.wait_for_timeout(400)
+    revisar("girar 90° cambia la huella del mueble en el plano",
+            "90°" in pagina.inner_text('.plano-mueble.seleccionado'),
+            f"({pagina.inner_text('.plano-mueble.seleccionado')})")
+
+    # Solape: se ve mientras se arrastra, no al guardar
+    pagina.evaluate("""() => {
+      const a = document.querySelector('.plano-mueble[data-tipo=\"ESTANTERIA\"]');
+      return a.getBoundingClientRect();
+    }""")
+    destino_a = pagina.eval_on_selector('.plano-mueble[data-tipo="ESTANTERIA"]', """el => {
+      const r = el.getBoundingClientRect();
+      return {x: r.x + r.width/2, y: r.y + r.height/2};
+    }""")
+    frig = pagina.eval_on_selector('.plano-mueble[data-tipo="FRIGORIFICO"]', """el => {
+      const r = el.getBoundingClientRect();
+      return {x: r.x + r.width/2, y: r.y + r.height/2};
+    }""")
+    pagina.mouse.move(frig["x"], frig["y"])
+    pagina.mouse.down()
+    pagina.mouse.move(destino_a["x"], destino_a["y"], steps=12)
+    pagina.wait_for_timeout(300)
+    revisar("montar un mueble sobre otro se marca en rojo mientras se arrastra",
+            pagina.eval_on_selector_all(".plano-mueble.solapado", "e => e.length") >= 2,
+            f"({pagina.eval_on_selector_all('.plano-mueble.solapado', 'e => e.length')} marcados)")
+    pagina.mouse.up()
+    pagina.wait_for_timeout(400)
+
+    pagina.click("#ac-guardar")
+    pagina.wait_for_timeout(600)
+    revisar("y al guardar la base lo rechaza con una explicación",
+            "ya está" in pagina.inner_text(".modal-cuerpo"),
+            f"(dice '{pagina.inner_text('.modal-cuerpo')[:90]}')")
+    revisar("pero deja confirmarlo, porque a veces sí van juntos",
+            "Sí van juntos" in pagina.inner_text(".modal-pie"))
+    pagina.click(".modal-pie button:first-child")
+    pagina.wait_for_timeout(300)
 
     print("\n--- Vista 3D con three.js")
     pagina.click('.tab[data-v="tresd"]')
@@ -948,8 +1090,21 @@ with sync_playwright() as p:
             f"(dice '{pagina.input_value('.cant-input')}')")
     revisar("un producto a peso sí ofrece el teclado de balanza",
             pagina.is_visible(".cant-peso"))
-    revisar("su paso es medio, no una centésima",
-            pagina.eval_on_selector(".cant-input", "el => el.step") == "0.5")
+    # El campo escrito admite cualquier peso: la balanza marca 1,03 lb y
+    # ese número tiene que poder escribirse. El paso de media libra vive
+    # en los botones + y −, no en el campo; atarlo al campo dejaba 1,03
+    # como valor inválido para el navegador.
+    revisar("el campo acepta el peso exacto de la balanza, sin pasos fijos",
+            pagina.eval_on_selector(".cant-input", "el => el.step") == "any",
+            f"(step='{pagina.eval_on_selector('.cant-input', 'el => el.step')}')")
+
+    pagina.click("[data-mas]")
+    pagina.wait_for_timeout(300)
+    revisar("pero el botón + sí se mueve de media en media libra",
+            pagina.input_value(".cant-input") == "1.5",
+            f"(dice '{pagina.input_value('.cant-input')}')")
+    pagina.click("[data-menos]")
+    pagina.wait_for_timeout(300)
 
     pagina.click(".cant-peso")
     pagina.wait_for_selector("#peso-valor", timeout=5000)
@@ -968,11 +1123,37 @@ with sync_playwright() as p:
             pagina.inner_text("#peso-importe") == "$0.82",
             f"(dice '{pagina.inner_text('#peso-importe')}')")
 
+    # El precio de lo que se pesa cambia seguido. El cajero tiene la
+    # balanza y el cliente delante: tiene que poder corregirlo aquí.
+    revisar("el teclado de peso deja escribir el precio por libra",
+            pagina.is_visible("#peso-precio-unit"))
+    revisar("y arranca con el precio del producto",
+            pagina.input_value("#peso-precio-unit") == "0.80",
+            f"(dice '{pagina.input_value('#peso-precio-unit')}')")
+
+    pagina.fill("#peso-precio-unit", "1.30")
+    pagina.wait_for_timeout(250)
+    # 1,03 lb a $1,30 son $1,339: se cobra $1,34 y se muestra el exacto.
+    revisar("al cambiar el precio se recalcula lo que hay que cobrar",
+            pagina.inner_text("#peso-importe") == "$1.34",
+            f"(dice '{pagina.inner_text('#peso-importe')}')")
+    revisar("y se muestra el valor exacto antes del redondeo al centavo",
+            "1.339" in pagina.inner_text("#peso-exacto"),
+            f"(dice '{pagina.inner_text('#peso-exacto')}')")
+    revisar("la cuenta queda a la vista: peso × precio",
+            "1.03" in pagina.inner_text("#peso-cuenta") and "1.30" in pagina.inner_text("#peso-cuenta"),
+            f"(dice '{pagina.inner_text('#peso-cuenta')}')")
+
     pagina.click(".modal-pie button:last-child")
     pagina.wait_for_timeout(400)
     revisar("el peso decimal sí se conserva en un producto que se pesa",
             pagina.input_value(".cant-input") == "1.03",
             f"(dice '{pagina.input_value('.cant-input')}')")
+    revisar("el precio escrito a mano se aplica a la línea",
+            "$1.30" in pagina.inner_text("tbody tr"),
+            f"(fila: {pagina.inner_text('tbody tr')[:120]})")
+    revisar("y la línea queda marcada como precio ajustado, sin sorpresas",
+            "ajustado" in pagina.inner_text("tbody tr"))
 
     # ---------------------------------------------------------
     print("\n--- Cobro con De Una")
@@ -1025,6 +1206,324 @@ with sync_playwright() as p:
     pagina.wait_for_timeout(300)
     revisar("las órdenes generadas quedan listadas",
             "OC-2026-00001" in pagina.inner_text("#tabla-oc"))
+
+    # ---------------------------------------------------------
+    # El proveedor entrega en caja de 12 y el market vende por unidad.
+    # La caja tiene su propio código de barras: leerlo tiene que sumar
+    # 12 unidades del mismo producto, no una, y no un producto aparte.
+    print("\n--- Código de la caja: una lectura, doce unidades")
+    pagina.evaluate("location.hash = '#pos'")
+    pagina.wait_for_selector("#pos-scan", timeout=8000)
+    pagina.click("#pos-limpiar")
+    # Una caja de 12 necesita 12 en percha; las pruebas anteriores
+    # dejaron este producto casi agotado a propósito.
+    pagina.evaluate("window.__emitirCambioStock('prod-ruffles', 60)")
+    pagina.wait_for_timeout(300)
+
+    pagina.fill("#pos-scan", "7861000100045")      # el código de la caja
+    pagina.press("#pos-scan", "Enter")
+    pagina.wait_for_timeout(400)
+    revisar("leer el código de la caja suma sus 12 unidades",
+            pagina.input_value(".cant-input") == "12",
+            f"(quedó en '{pagina.input_value('.cant-input')}')")
+    revisar("y se dice en pantalla que entró un bulto, no una unidad",
+            "Caja x 12" in pagina.inner_text("#pos-scan-msg"),
+            f"(dice '{pagina.inner_text('#pos-scan-msg')}')")
+
+    # El código de la unidad sigue funcionando sobre el mismo producto:
+    # no se crea una segunda línea ni un producto distinto.
+    pagina.fill("#pos-scan", "7861000100021")
+    pagina.press("#pos-scan", "Enter")
+    pagina.wait_for_timeout(400)
+    revisar("el código de la unidad suma sobre la misma línea",
+            pagina.input_value(".cant-input") == "13",
+            f"(quedó en '{pagina.input_value('.cant-input')}')")
+    revisar("no se abrió una segunda línea para el mismo producto",
+            pagina.eval_on_selector_all("#pos-lineas tr", "e => e.length") == 1)
+
+    revisar("el botón de cámara está a la mano para el celular",
+            pagina.is_visible("#pos-camara"))
+
+    pagina.click("#pos-limpiar")
+    pagina.wait_for_timeout(300)
+
+    # ---------------------------------------------------------
+    # La recepción es donde se decide si el inventario es real: el
+    # proveedor entrega en cajas, la factura no siempre coincide con lo
+    # que baja del camión, y el código de barras cambia sin avisar.
+    # ---------------------------------------------------------
+    # La factura electrónica del proveedor ES un XML firmado; el papel
+    # que entregan es solo su impresión. Leerlo no es "reconocer" nada:
+    # es abrir el documento original, así que las cifras entran exactas.
+    print("\n--- Traer la factura del proveedor desde su XML")
+    pagina.evaluate("location.hash = '#ingresos'")
+    pagina.wait_for_selector("#zona-xml", timeout=8000)
+    pagina.wait_for_timeout(500)
+
+    revisar("hay un sitio para abrir el XML de la factura",
+            pagina.is_visible("#xml-archivo"))
+    revisar("y se explica de dónde se saca ese archivo",
+            "SRI en línea" in pagina.inner_text(".panel-importar"))
+
+    # Un archivo que no es XML no puede romper nada
+    pagina.set_input_files("#xml-archivo", files=[{
+        "name": "factura.jpg", "mimeType": "image/jpeg", "buffer": b"no soy un xml"}])
+    pagina.wait_for_timeout(400)
+    revisar("un archivo que no es XML se rechaza con una explicación",
+            "no es un archivo XML" in pagina.inner_text("#xml-msg"),
+            f"(dice '{pagina.inner_text('#xml-msg')}')")
+
+    FACTURA_XML = """<?xml version="1.0" encoding="UTF-8"?>
+<factura id="comprobante" version="1.1.0">
+  <infoTributaria><ambiente>2</ambiente><tipoEmision>1</tipoEmision>
+    <razonSocial>DISTRIBUIDORA ANDINA S.A.</razonSocial><ruc>1790012345001</ruc>
+    <claveAcceso>0909202601179001234500120010030000247786316875019</claveAcceso>
+    <codDoc>01</codDoc><estab>001</estab><ptoEmi>003</ptoEmi>
+    <secuencial>000024778</secuencial></infoTributaria>
+  <infoFactura><fechaEmision>09/09/2026</fechaEmision>
+    <identificacionComprador>1728605070001</identificacionComprador>
+    <razonSocialComprador>MINIMARKET EL CULTIVO</razonSocialComprador>
+    <totalSinImpuestos>12.00</totalSinImpuestos><totalDescuento>0.00</totalDescuento>
+    <totalConImpuestos><totalImpuesto><codigo>2</codigo><codigoPorcentaje>4</codigoPorcentaje>
+      <baseImponible>12.00</baseImponible><valor>1.80</valor></totalImpuesto></totalConImpuestos>
+    <importeTotal>13.80</importeTotal></infoFactura>
+  <detalles>
+    <detalle><codigoPrincipal>AND-500</codigoPrincipal>
+      <codigoAuxiliar>7861000100021</codigoAuxiliar>
+      <descripcion>PAPAS RUFFLES CAJA X 12</descripcion>
+      <cantidad>1.00</cantidad><precioUnitario>9.00</precioUnitario>
+      <descuento>0.00</descuento><precioTotalSinImpuesto>9.00</precioTotalSinImpuesto>
+      <impuestos><impuesto><codigo>2</codigo><codigoPorcentaje>4</codigoPorcentaje>
+        <tarifa>15.00</tarifa><baseImponible>9.00</baseImponible><valor>1.35</valor>
+      </impuesto></impuestos></detalle>
+    <detalle><codigoPrincipal>AND-777</codigoPrincipal><codigoAuxiliar>0</codigoAuxiliar>
+      <descripcion>ALGO QUE EL MARKET NO CONOCE</descripcion>
+      <cantidad>3.00</cantidad><precioUnitario>1.00</precioUnitario>
+      <descuento>0.00</descuento><precioTotalSinImpuesto>3.00</precioTotalSinImpuesto>
+      <impuestos><impuesto><codigo>2</codigo><codigoPorcentaje>4</codigoPorcentaje>
+        <tarifa>15.00</tarifa><baseImponible>3.00</baseImponible><valor>0.45</valor>
+      </impuesto></impuestos></detalle>
+  </detalles>
+</factura>"""
+
+    pagina.set_input_files("#xml-archivo", files=[{
+        "name": "factura.xml", "mimeType": "text/xml",
+        "buffer": FACTURA_XML.encode("utf-8")}])
+    pagina.wait_for_selector(".tabla-importacion", timeout=8000)
+    pagina.wait_for_timeout(600)
+
+    cabecera = pagina.inner_text(".imp-resumen")
+    revisar("la cabecera de la factura entra exacta, sin digitar nada",
+            "1790012345001" in cabecera and "13.80" in cabecera,
+            f"(dice '{cabecera[:110]}')")
+    revisar("el título muestra el número real de la factura",
+            "001-003-000024778" in pagina.inner_text(".modal-head"))
+
+    filas = pagina.query_selector_all(".tabla-importacion tbody tr")
+    revisar("se listan las dos líneas de la factura", len(filas) == 2)
+
+    # La primera trae el EAN del producto: se reconoce sola.
+    revisar("la línea que trae el código de barras se reconoce sola",
+            "código de barras" in pagina.inner_text(".tabla-importacion tbody tr:first-child"),
+            f"({pagina.inner_text('.tabla-importacion tbody tr:first-child')[:90]})")
+    # La segunda no: queda marcada para emparejarla una vez.
+    revisar("la que no se conoce queda marcada, no se inventa una equivalencia",
+            "Sin equivalencia" in pagina.inner_text(".tabla-importacion tbody tr:last-child"))
+
+    # Sin emparejar todo, no deja crear el ingreso.
+    pagina.click('.modal-pie button:has-text("Crear el ingreso")')
+    pagina.wait_for_timeout(500)
+    revisar("no deja crear el ingreso con líneas sin emparejar",
+            "Faltan 1" in pagina.inner_text("#imp-msg"),
+            f"(dice '{pagina.inner_text('#imp-msg')}')")
+
+    # El proveedor factura la CAJA DE 12 y el market vende por unidad:
+    # el factor es lo que hace que entren 12 y no 1.
+    pagina.eval_on_selector('[data-factor="0"]', """el => {
+      el.value = '12'; el.dispatchEvent(new Event('input'));
+    }""")
+    pagina.wait_for_timeout(300)
+    real0 = pagina.inner_text('[data-real="0"]')
+    costo0 = pagina.inner_text('[data-costo="0"]')
+    revisar("el factor convierte la caja en unidades al stock",
+            real0 == "12", f"(dice '{real0}')")
+    revisar("y reparte el costo del bulto entre las unidades",
+            costo0 == "$0.7500", f"(dice '{costo0}')")
+
+    pagina.eval_on_selector('[data-prod="1"]', """el => {
+      el.value = [...el.options].find(o => o.textContent.includes('Limón')).value;
+      el.dispatchEvent(new Event('change'));
+    }""")
+    pagina.wait_for_timeout(300)
+
+    pagina.click('.modal-pie button:has-text("Crear el ingreso")')
+    pagina.wait_for_timeout(900)
+
+    escrituras = pagina.evaluate("window.__ESCRITURAS")
+    vinculos = [e for e in escrituras if e["tabla"] == "rpc:fn_vincular_producto_proveedor"]
+    revisar("el sistema aprende la equivalencia para la próxima factura",
+            len(vinculos) == 2, f"({len(vinculos)} equivalencias guardadas)")
+    revisar("y recuerda cuántas unidades trae el bulto del proveedor",
+            any(v["payload"]["p_factor"] == 12 for v in vinculos),
+            f"({[v['payload']['p_factor'] for v in vinculos]})")
+
+    doc = next((e for e in escrituras
+                if e["tabla"] == "documentos_ingreso" and e["operacion"] == "insert"), None)
+    revisar("el ingreso guarda la clave de acceso de la factura",
+            doc is not None and doc["payload"]["clave_acceso"].endswith("875019"),
+            f"({doc['payload'] if doc else 'no se creó'})")
+    revisar("y deja anotado que vino del XML, no de alguien digitando",
+            doc is not None and doc["payload"]["origen"] == "XML_SRI")
+
+    lineas_rpc = [e for e in escrituras if e["tabla"] == "rpc:fn_agregar_linea_ingreso"
+                  and "Importado del XML" in str(e["payload"].get("p_observacion"))]
+    revisar("las líneas entran al ingreso con su rastro de origen",
+            len(lineas_rpc) == 2, f"({len(lineas_rpc)} líneas)")
+
+    revisar("y se recuerda que hay que contar la mercadería igual",
+            "cuente la mercadería" in pagina.inner_text("#xml-msg"),
+            f"(dice '{pagina.inner_text('#xml-msg')[:100]}')")
+
+    print("\n--- Recepción de mercadería")
+    # Se vuelve a entrar al módulo: la importación anterior dejó la
+    # cabecera bloqueada, que es lo correcto —ese ingreso ya existe—
+    # pero aquí se prueba el camino manual desde cero.
+    pagina.evaluate("location.hash = '#dashboard'")
+    pagina.wait_for_timeout(600)
+    pagina.evaluate("location.hash = '#ingresos'")
+    pagina.wait_for_selector("#form-cabecera", timeout=8000)
+    pagina.wait_for_timeout(500)
+
+    pagina.eval_on_selector("#ing-proveedor", "el => { el.selectedIndex = 1; el.dispatchEvent(new Event('change')); }")
+    pagina.wait_for_timeout(400)
+    revisar("se pueden recibir contra una orden de compra",
+            pagina.eval_on_selector("#ing-orden", "el => el.options.length") > 1,
+            f"({pagina.eval_on_selector('#ing-orden', 'el => el.options.length')} opciones)")
+
+    pagina.eval_on_selector("#ing-bodega", "el => { el.selectedIndex = 1; }")
+    pagina.fill("#ing-numero", "001-001-000000123")
+    pagina.click("#form-cabecera button[type=submit]")
+    pagina.wait_for_selector("#det-bultos", timeout=8000)
+    pagina.wait_for_timeout(400)
+    revisar("creada la cabecera, se abre la recepción", pagina.is_visible("#det-scan"))
+
+    # El campo de bultos venía con min="0.0001" y step="1": el navegador
+    # cuenta los pasos DESDE EL MÍNIMO, así que solo aceptaba 1,0001 ·
+    # 2,0001… Por eso las flechitas escribían 1.0001.
+    revisar("el mínimo y el paso de bultos están alineados (no 0,0001 con paso 1)",
+            pagina.eval_on_selector("#det-bultos", "el => el.min") == "1"
+            and pagina.eval_on_selector("#det-bultos", "el => el.step") == "1",
+            f"(min={pagina.eval_on_selector('#det-bultos', 'el => el.min')}, "
+            f"step={pagina.eval_on_selector('#det-bultos', 'el => el.step')})")
+    revisar("la flecha de subir da 2, no 1.0001",
+            pagina.eval_on_selector("#det-bultos",
+              "el => { el.value = '1'; el.stepUp(); return el.value; }") == "2")
+
+    # --- Escanear el producto físico ---
+    pagina.fill("#det-scan", "7861000100021")
+    pagina.press("#det-scan", "Enter")
+    pagina.wait_for_timeout(400)
+    revisar("escanear el producto lo selecciona y marca el código verificado",
+            "verificado" in pagina.inner_text("#det-msg"),
+            f"(dice '{pagina.inner_text('#det-msg')}')")
+    revisar("y ofrece las presentaciones de ese producto",
+            "Caja x 12" in pagina.inner_text("#det-presentacion"),
+            f"(opciones: {pagina.inner_text('#det-presentacion')})")
+
+    # --- Contar en bultos, no en unidades ---
+    pagina.eval_on_selector("#det-presentacion", """el => {
+      el.value = [...el.options].find(o => o.textContent.includes('Caja')).value;
+      el.dispatchEvent(new Event('change'));
+    }""")
+    pagina.fill("#det-bultos", "6")
+    pagina.fill("#det-costo", "9.00")
+    pagina.wait_for_timeout(300)
+    calculo = pagina.inner_text("#det-calculo")
+    revisar("6 cajas de 12 se muestran como 72 unidades al stock",
+            "72" in calculo, f"(dice '{calculo}')")
+    revisar("y el costo del bulto se reparte entre las unidades",
+            "0.7500" in calculo, f"(dice '{calculo}')")
+
+    # --- Faltante: la factura dice 6 cajas, llegaron 5 ---
+    pagina.fill("#det-bultos-doc", "6")
+    pagina.fill("#det-bultos", "5")
+    pagina.wait_for_timeout(300)
+    revisar("se avisa del faltante antes de guardar la línea",
+            "faltante" in pagina.inner_text("#det-calculo"),
+            f"(dice '{pagina.inner_text('#det-calculo')}')")
+
+    pagina.click("#form-detalle button[type=submit]")
+    pagina.wait_for_timeout(600)
+    escrituras = pagina.evaluate("window.__ESCRITURAS")
+    # La última: las anteriores son las que creó la importación del XML.
+    lineas_agregadas = [e for e in escrituras if e["tabla"] == "rpc:fn_agregar_linea_ingreso"]
+    linea = lineas_agregadas[-1] if lineas_agregadas else None
+    revisar("la línea se guarda contando bultos, no unidades sueltas",
+            linea is not None and linea["payload"]["p_bultos"] == 5,
+            f"({linea['payload'] if linea else 'no se llamó'})")
+    revisar("y viaja también lo que decía la factura, para poder reclamar",
+            linea is not None and linea["payload"]["p_bultos_documento"] == 6)
+    revisar("junto con el código que se escaneó",
+            linea is not None and linea["payload"]["p_codigo_escaneado"] == "7861000100021")
+    revisar("el sistema deja constancia de la diferencia",
+            "recibieron" in pagina.inner_text("#det-msg"),
+            f"(dice '{pagina.inner_text('#det-msg')}')")
+    revisar("y la línea queda marcada en la tabla como escaneada",
+            "✔" in pagina.inner_text("#detalle-table"))
+
+    # --- El proveedor cambió el código de barras ---
+    pagina.fill("#det-scan", "7861000100052")
+    pagina.press("#det-scan", "Enter")
+    pagina.wait_for_selector("#cod-producto", timeout=5000)
+    pagina.wait_for_timeout(300)
+    revisar("un código desconocido no se descarta: se ofrece registrarlo",
+            pagina.is_visible("#cod-producto"))
+    revisar("y se explica que el código viejo seguirá funcionando",
+            "seguirá vendiendo" in pagina.inner_text(".modal-cuerpo"))
+
+    pagina.eval_on_selector("#cod-producto", """el => {
+      el.value = [...el.options].find(o => o.textContent.includes('Ruffles')).value;
+      el.dispatchEvent(new Event('change'));
+    }""")
+    pagina.click(".modal-pie button:last-child")
+    pagina.wait_for_timeout(600)
+    registro = next((e for e in pagina.evaluate("window.__ESCRITURAS")
+                     if e["tabla"] == "rpc:fn_registrar_codigo_producto"), None)
+    revisar("el código nuevo se registra contra el producto elegido",
+            registro is not None and registro["payload"]["p_codigo"] == "7861000100052",
+            f"({registro['payload'] if registro else 'no se llamó'})")
+
+    # --- Precios sugeridos sobre el costo real ---
+    # La sugerencia parte del costo POR UNIDAD, no del costo del bulto:
+    # una caja de 12 a $9,00 son $0,75 la unidad.
+    pagina.eval_on_selector("#det-presentacion", """el => {
+      el.value = [...el.options].find(o => o.textContent.includes('Caja')).value;
+      el.dispatchEvent(new Event('change'));
+    }""")
+    pagina.fill("#det-bultos", "1")
+    pagina.fill("#det-costo", "9.00")
+    pagina.click("#det-precios")
+    pagina.wait_for_selector(".tabla-precios", timeout=5000)
+    pagina.wait_for_timeout(300)
+    revisar("se propone el precio al público y el de mayorista sobre el costo real",
+            "Sugerido al público" in pagina.inner_text(".modal-cuerpo")
+            and "Sugerido al por mayor" in pagina.inner_text(".modal-cuerpo"))
+    revisar("y el sugerido al público es mayor que el costo",
+            "$0.94" in pagina.inner_text(".tabla-precios"),
+            f"(tabla: {pagina.inner_text('.tabla-precios')[:150]})")
+    pagina.click(".modal-pie button:first-child")
+    pagina.wait_for_timeout(300)
+
+    # --- Confirmar ---
+    pagina.click("#btn-confirmar")
+    pagina.wait_for_selector("#conf-msg", state="attached", timeout=5000)
+    pagina.wait_for_timeout(300)
+    revisar("antes de confirmar se avisa de las líneas que no cuadran con la factura",
+            "no cuadran con la factura" in pagina.inner_text(".modal-cuerpo"))
+    revisar("y se dice claro que al stock entra lo recibido",
+            "cantidades recibidas" in pagina.inner_text(".modal-cuerpo"))
+    pagina.click(".modal-pie button:first-child")
+    pagina.wait_for_timeout(300)
 
     print("\n--- Otras pantallas cargan sin romperse")
     for ruta, selector in [

@@ -530,3 +530,101 @@ funciones, 26 triggers y 53 políticas de seguridad viven dentro de la base a
 propósito, y Firestore no tiene dónde ponerlas. Además, sobre Supabase la base
 se abre desde DBeaver o pgAdmin como cualquier PostgreSQL; sobre Firebase, no
 existe esa posibilidad.
+
+---
+
+# Anexo — versión 9
+
+## Migraciones nuevas (ejecutar en orden, después de la 012)
+
+```
+db/013_seguridad_vistas.sql
+db/014_impresion_termica.sql
+db/015_presentaciones_codigos.sql
+db/016_plano_editable.sql
+db/017_facturas_proveedor.sql
+```
+
+Todas son re-ejecutables: volver a correr una ya aplicada no rompe nada.
+Si duda de cuáles faltan, ejecute `db/000_diagnostico.sql` en el SQL Editor:
+lista los archivos pendientes uno por línea y refresca el caché de esquema al
+terminar.
+
+La **013 es la más importante de las cinco**. El analizador de seguridad de
+Supabase marcaba ocho vistas como CRITICAL y no era un falso positivo: una
+vista de PostgreSQL se ejecuta por defecto con los permisos de quien la creó,
+así que cualquier usuario autenticado veía todas las filas de las tablas de
+abajo aunque las políticas dijeran otra cosa. Hoy el daño era limitado, pero
+crecía solo: el día que se restrinja una tabla por sede o por rol, la
+restricción no se aplicaría a través de las vistas y nadie se enteraría.
+
+## La impresora térmica
+
+En **Administración → Datos de la empresa** hay un control nuevo: el ancho
+del rollo, 80 mm (el estándar de mostrador) o 58 mm (portátil). El recibo se
+maqueta con esa medida exacta.
+
+Dos cosas dependen de la máquina y no del sistema:
+
+- En el diálogo de impresión del navegador, el destino debe ser la térmica y
+  los márgenes «Ninguno». Conviene dejarlo fijo en el driver de la impresora
+  para que el cajero no tenga que tocarlo en cada venta.
+- Si aparece «A4» en el tamaño de papel, es que está seleccionada otra
+  impresora.
+
+El logotipo ya no se imprime. Una térmica trabaja a 203 puntos por pulgada y
+en un solo color: un logotipo sale como una mancha gris, gasta papel y hace
+más lenta cada venta. Sigue en pantalla, en el menú y en los reportes PDF.
+
+## Antes de usar las presentaciones
+
+Al aplicar la migración 015, cada producto recibe su **presentación base** de
+factor 1, y el código de barras que ya tenía pasa a ser su código principal.
+No hay que hacer nada para eso.
+
+Lo que sí hay que hacer, producto por producto y solo en los que se compran
+por bulto: entrar en **Catálogo → Productos → Presentaciones y códigos** y
+crear la presentación de compra («Caja x 24», factor 24). Sin eso, la
+recepción sigue funcionando pero contando unidades sueltas.
+
+Si la caja tiene su propio código de barras —casi siempre lo tiene— regístrelo
+en la misma pantalla eligiendo «Es el código de: Caja x 24». Desde ese
+momento, pasar el lector por la caja carga sus 24 unidades de una vez.
+
+## El escáner con la cámara
+
+Funciona en Chrome sobre Android usando el lector del propio sistema
+operativo, que es rápido y no descarga nada. En navegadores que no lo traen
+—Safari en iPhone, Firefox— la aplicación carga su propio decodificador
+(143 KB) **solo en ese momento**, para que la caja del mostrador no cargue un
+archivo que nunca va a usar.
+
+Requisito que conviene saber de antemano: **la cámara solo funciona sobre
+HTTPS**. En `http://` el navegador no da permiso, ni siquiera con el usuario
+aceptando. La publicación por Netlify, Vercel o Cloudflare Pages ya trae
+HTTPS; una carpeta compartida en la red local, no.
+
+## Ingresar la factura del proveedor
+
+En **Ingresos → Nuevo ingreso** hay una caja para abrir o arrastrar el `.xml`
+de la factura electrónica. El detalle está en
+`ANALISIS_FACTURAS_PROVEEDOR.md`; lo esencial para operar:
+
+- El XML llega por correo del proveedor, o se descarga de **SRI en línea →
+  Comprobantes electrónicos recibidos**.
+- La primera factura de cada proveedor pide emparejar sus códigos con los
+  productos del market, indicando cuántas unidades trae cada bulto. De la
+  segunda en adelante entra sola.
+- **Importar no cierra el ingreso.** Las cantidades quedan precargadas con lo
+  que dice la factura; hay que contar la mercadería y corregir lo que no
+  coincida. Al stock entra lo físico, y la diferencia queda escrita para
+  reclamar.
+- La misma factura no se puede ingresar dos veces: la clave de acceso es
+  única en el sistema.
+
+## Acomodar el plano
+
+Antes de mover nada, entre en **Mapa del local → Acomodar el local → Medidas
+del local** y ponga el ancho y el fondo de la sala de pared a pared. Sin esas
+dos medidas el plano no sabe dónde está la pared y amontona los muebles
+contra el origen.

@@ -13,6 +13,7 @@ import { abrirQRDeUna } from './lib/qr-deuna.js';
 import {
   configurar, fijarTipoVenta, agregar, cambiarCantidad, vaciar,
   lineasCalculadas, totales, obtenerEstado, actualizarStock, suscribir, reiniciarCliente,
+  fijarPrecioUnitario,
 } from './lib/venta-activa.js';
 
 // Canal de tiempo real activo. Se cierra al salir del punto de venta
@@ -38,8 +39,12 @@ export async function renderPOS(container) {
       <div class="pos-izquierda">
         <div class="panel pos-scan-panel">
           <label for="pos-scan" class="scan-label">Escanear o buscar producto</label>
-          <input type="text" id="pos-scan" class="scan-input"
-                 placeholder="Pase el lector, o escriba código / nombre / marca" autocomplete="off" />
+          <div class="scan-fila">
+            <input type="text" id="pos-scan" class="scan-input"
+                   placeholder="Pase el lector, o escriba código / nombre / marca" autocomplete="off" />
+            <button type="button" id="pos-camara" class="btn-escanear"
+                    title="Leer el código con la cámara (para cuando no hay lector)">📷</button>
+          </div>
           <div id="pos-scan-msg" class="form-msg"></div>
         </div>
 
@@ -161,19 +166,82 @@ export async function renderPOS(container) {
       `${p.codigo}${p.ean13 ? ` · ${p.ean13}` : ''} · ${p.ubicacion ?? 's/ubicación'} · ` +
       `stock ${Number(p.stock).toFixed(2)} ${p.unidad ?? ''} · $${Number(p.precio_venta_menor).toFixed(2)}`,
     valor: (p) => p.producto_id,
-    coincideExacto: (p, texto) => {
-      const ean = normalizarCodigoEscaneado(texto);
-      return (ean && p.ean13 === ean) || p.codigo?.toLowerCase() === texto.toLowerCase();
-    },
-    alElegir: (producto) => {
-      const r = agregar(producto);
-      scanMsg.textContent = r.mensaje ?? '';
+    coincideExacto: (p, texto) => Boolean(resolverCodigo(texto)?.producto === p),
+    alElegir: (producto, textoEscrito) => {
+      // Si lo que se escaneó es el código de un bulto, entran sus
+      // unidades de una vez. Se usa el texto ORIGINAL: para cuando
+      // llega aquí, el campo ya muestra el nombre del producto.
+      const hallazgo = resolverCodigo(textoEscrito);
+      const unidades = hallazgo?.producto === producto ? hallazgo.unidades : 1;
+
+      const r = agregar(producto, unidades);
+      scanMsg.textContent = r.ok && unidades > 1
+        ? `${producto.nombre} · ${hallazgo.presentacion ?? 'bulto'} de ${unidades}`
+        : (r.mensaje ?? '');
       scanMsg.className = `form-msg ${r.ok ? 'ok' : 'error'}`;
       scan.value = '';
       delete scan.dataset.valor;
       scan.classList.remove('ac-elegido');
       scan.focus();
     },
+  });
+
+  /**
+   * Resuelve lo escrito o escaneado contra TODOS los códigos del
+   * producto, no solo el principal.
+   *
+   * POR QUÉ IMPORTA: el proveedor cambia el EAN y en la percha conviven
+   * el código viejo y el nuevo. Con un solo código guardado, la mitad
+   * de la mercadería no pasaría por la caja. Además, el código de la
+   * CAJA es distinto al de la unidad y vale por varias unidades: si se
+   * lee el de la caja, entran las 24 de una vez.
+   */
+  function resolverCodigo(texto) {
+    const limpio = String(texto ?? '').trim();
+    if (!limpio) return null;
+    const ean = normalizarCodigoEscaneado(limpio);
+
+    for (const p of catalogo) {
+      for (const c of p.codigos ?? []) {
+        if (c.codigo === limpio || (ean && c.codigo === ean)) {
+          return { producto: p, unidades: Number(c.unidades) || 1, presentacion: c.presentacion };
+        }
+      }
+      // Respaldo para bases que todavía no aplicaron la migración 015
+      if ((ean && p.ean13 === ean) || p.codigo?.toLowerCase() === limpio.toLowerCase()) {
+        return { producto: p, unidades: 1, presentacion: null };
+      }
+    }
+    return null;
+  }
+
+  /** Suma al carrito lo que representa un código leído. */
+  function agregarPorCodigo(texto) {
+    const hallazgo = resolverCodigo(texto);
+    if (!hallazgo) {
+      scanMsg.textContent = `No hay ningún producto con el código "${texto}"`;
+      scanMsg.className = 'form-msg error';
+      return false;
+    }
+    const r = agregar(hallazgo.producto, hallazgo.unidades);
+    scanMsg.textContent = r.ok && hallazgo.unidades > 1
+      ? `${hallazgo.producto.nombre} · ${hallazgo.presentacion ?? 'bulto'} de ${hallazgo.unidades}`
+      : (r.mensaje ?? '');
+    scanMsg.className = `form-msg ${r.ok ? 'ok' : 'error'}`;
+    return r.ok;
+  }
+
+  // Cámara: el mismo campo, pero para el celular, donde no hay lector.
+  container.querySelector('#pos-camara').addEventListener('click', async () => {
+    const { abrirEscaner } = await import('./lib/escaner.js');
+    abrirEscaner({
+      titulo: 'Escanear producto',
+      ayuda: 'Puede seguir escaneando: la cámara no se cierra hasta que pulse Cerrar.',
+      alLeer: (codigo) => {
+        agregarPorCodigo(codigo);
+        return 'seguir';
+      },
+    });
   });
 
   // ----- Pintado -----
@@ -198,7 +266,7 @@ export async function renderPOS(container) {
                     title="Quitar ${formatear(paso(l.producto), l.producto)} ${escapar(l.producto.unidad ?? '')}">−</button>
             <input type="number" class="cant-input" data-id="${l.producto.producto_id}"
                    value="${formatear(l.cantidad, l.producto)}"
-                   min="0" step="${paso(l.producto)}"
+                   min="0" step="${fracciona(l.producto) ? 'any' : '1'}"
                    inputmode="${fracciona(l.producto) ? 'decimal' : 'numeric'}" />
             <button type="button" class="cant-btn" data-mas="${l.producto.producto_id}"
                     title="Agregar ${formatear(paso(l.producto), l.producto)} ${escapar(l.producto.unidad ?? '')}">+</button>
@@ -208,7 +276,12 @@ export async function renderPOS(container) {
           </div>
           <div class="cant-unidad">${escapar(l.producto.unidad_nombre ?? l.producto.unidad ?? '')}</div>
         </td>
-        <td>$${l.calculo.precioBase.toFixed(2)}</td>
+        <td>
+          $${l.calculo.precioBase.toFixed(2)}
+          ${l.producto.precio_editado
+            ? `<span class="badge-precio" title="Precio escrito a mano en esta venta. Antes: $${Number(l.producto.precio_original ?? 0).toFixed(2)}">ajustado</span>`
+            : ''}
+        </td>
         <td class="${l.calculo.descuento > 0 ? 'texto-descuento' : ''}">
           ${l.calculo.descuento > 0 ? '-$' + l.calculo.descuento.toFixed(2) : '—'}</td>
         <td>$${l.calculo.totalConPromo.toFixed(2)}</td>
@@ -251,7 +324,14 @@ export async function renderPOS(container) {
     tbody.querySelectorAll('[data-peso]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const l = lineaDe(btn.dataset.peso);
-        if (l) abrirTecladoPeso(l, (valor) => aplicar(cambiarCantidad(l.producto.producto_id, valor)));
+        if (!l) return;
+        abrirTecladoPeso(l, (valor, precioNuevo) => {
+          if (precioNuevo != null) {
+            const r = fijarPrecioUnitario(l.producto.producto_id, precioNuevo);
+            if (!r.ok) { aplicar(r); return; }
+          }
+          aplicar(cambiarCantidad(l.producto.producto_id, valor));
+        });
       });
     });
 
@@ -484,7 +564,7 @@ export async function renderPOS(container) {
 function abrirTecladoPeso(linea, alConfirmar) {
   const p = linea.producto;
   const unidad = p.unidad_nombre ?? p.unidad ?? '';
-  const precio = Number(linea.calculo?.precioBase ?? p.precio_venta_menor ?? 0);
+  const precioInicial = Number(linea.calculo?.precioBase ?? p.precio_venta_menor ?? 0);
 
   abrirModal({
     titulo: `Peso de ${p.nombre}`,
@@ -495,10 +575,27 @@ function abrirTecladoPeso(linea, alConfirmar) {
                  value="${formatear(linea.cantidad, p)}" autocomplete="off" />
           <span class="peso-unidad">${escapar(unidad)}</span>
         </div>
-        <div class="peso-importe">
-          $${precio.toFixed(2)} por ${escapar(unidad)} · importe
-          <b id="peso-importe">$${(precio * linea.cantidad).toFixed(2)}</b>
+
+        <div class="peso-precio">
+          <label for="peso-precio-unit">Precio por ${escapar(unidad)}</label>
+          <div class="peso-precio-campo">
+            <span>$</span>
+            <input type="number" id="peso-precio-unit" inputmode="decimal"
+                   min="0.01" step="0.01" value="${precioInicial.toFixed(2)}" />
+          </div>
+          <button type="button" id="peso-guardar-precio" class="enlace-sobrio"
+                  title="Deja este precio como el precio del producto, para las próximas ventas">
+            Guardar como precio del producto
+          </button>
         </div>
+
+        <div class="peso-importe">
+          <span id="peso-cuenta">${formatear(linea.cantidad, p)} × $${precioInicial.toFixed(2)}</span>
+          · a cobrar
+          <b id="peso-importe">$${redondearCentavo(precioInicial * linea.cantidad).toFixed(2)}</b>
+          <span id="peso-exacto" class="peso-exacto"></span>
+        </div>
+
         <div class="peso-teclado">
           ${['7','8','9','4','5','6','1','2','3','.','0','←']
             .map((t) => `<button type="button" class="peso-tecla" data-t="${t}">${t}</button>`).join('')}
@@ -507,7 +604,8 @@ function abrirTecladoPeso(linea, alConfirmar) {
           ${[0.25, 0.5, 1, 2, 5].map((v) =>
             `<button type="button" class="peso-rapido" data-v="${v}">${v} ${escapar(unidad)}</button>`).join('')}
         </div>
-        <p class="nota">Disponible: ${formatear(p.stock, p)} ${escapar(unidad)}</p>
+        <p class="nota">Disponible: ${formatear(p.stock, p)} ${escapar(unidad)}. El peso puede
+        escribirse a mano o llegar de la balanza; el importe se calcula solo.</p>
         <div id="peso-msg" class="form-msg"></div>
       </div>`,
     botones: [
@@ -516,11 +614,30 @@ function abrirTecladoPeso(linea, alConfirmar) {
     ],
     alAbrir: (modal) => {
       const campo = modal.querySelector('#peso-valor');
+      const campoPrecio = modal.querySelector('#peso-precio-unit');
       const importe = modal.querySelector('#peso-importe');
+      const cuenta = modal.querySelector('#peso-cuenta');
+      const exacto = modal.querySelector('#peso-exacto');
+      const msg = modal.querySelector('#peso-msg');
 
       function repintar() {
         const n = Number(campo.value.replace(',', '.'));
-        importe.textContent = Number.isFinite(n) ? `$${(precio * n).toFixed(2)}` : '—';
+        const pr = Number(campoPrecio.value.replace(',', '.'));
+        if (!Number.isFinite(n) || !Number.isFinite(pr)) {
+          importe.textContent = '—';
+          cuenta.textContent = '';
+          exacto.textContent = '';
+          return;
+        }
+        const bruto = n * pr;
+        const cobrar = redondearCentavo(bruto);
+        cuenta.textContent = `${n} ${unidad} × $${pr.toFixed(2)}`;
+        importe.textContent = `$${cobrar.toFixed(2)}`;
+        // Se muestra el valor exacto cuando el redondeo al centavo
+        // mueve la cifra: 2,35 lb a $1,30 son $3,055, y el cliente
+        // paga $3,06. Verlo evita discusiones en el mostrador.
+        exacto.textContent = Math.abs(bruto - cobrar) > 1e-9
+          ? `(exacto $${bruto.toFixed(4)})` : '';
       }
 
       modal.querySelectorAll('.peso-tecla').forEach((b) => {
@@ -537,8 +654,36 @@ function abrirTecladoPeso(linea, alConfirmar) {
         b.addEventListener('click', () => { campo.value = b.dataset.v; repintar(); });
       });
 
+      campoPrecio.addEventListener('input', repintar);
       campo.addEventListener('input', repintar);
       campo.addEventListener('keydown', (e) => { if (e.key === 'Enter') confirmar(); });
+
+      modal.querySelector('#peso-guardar-precio').addEventListener('click', async () => {
+        const pr = Number(campoPrecio.value.replace(',', '.'));
+        if (!Number.isFinite(pr) || pr <= 0) {
+          msg.textContent = 'Escriba primero un precio válido';
+          msg.className = 'form-msg error';
+          return;
+        }
+        msg.textContent = 'Guardando…';
+        msg.className = 'form-msg';
+        const { error } = await supabase.from('productos')
+          .update({ precio_venta_menor: pr })
+          .eq('id', p.producto_id);
+
+        if (error) {
+          // Lo más probable es que el rol no tenga permiso de cambiar
+          // precios; se dice así, no con el error de PostgreSQL.
+          msg.innerHTML = /permission|row-level|42501/i.test(error.message)
+            ? 'Su usuario no tiene permiso para cambiar precios. El precio sí se aplica a esta venta.'
+            : escapar(error.message);
+          msg.className = 'form-msg error';
+          return;
+        }
+        msg.textContent = `Precio actualizado: $${pr.toFixed(2)} por ${unidad}.`;
+        msg.className = 'form-msg ok';
+      });
+
       campo.focus();
       campo.select();
     },
@@ -547,15 +692,27 @@ function abrirTecladoPeso(linea, alConfirmar) {
   function confirmar() {
     const modal = document.querySelector('.modal');
     const n = Number(modal.querySelector('#peso-valor').value.replace(',', '.'));
+    const pr = Number(modal.querySelector('#peso-precio-unit').value.replace(',', '.'));
     const msg = modal.querySelector('#peso-msg');
+
     if (!Number.isFinite(n) || n <= 0) {
       msg.textContent = 'Escriba un peso mayor que cero';
       msg.className = 'form-msg error';
       return;
     }
+    if (!Number.isFinite(pr) || pr <= 0) {
+      msg.textContent = 'El precio por ' + unidad + ' tiene que ser mayor que cero';
+      msg.className = 'form-msg error';
+      return;
+    }
     cerrarModal();
-    alConfirmar(n);
+    alConfirmar(n, pr !== precioInicial ? pr : null);
   }
+}
+
+/** Al centavo: lo que se puede cobrar de verdad con monedas. */
+function redondearCentavo(v) {
+  return Math.round((Number(v) + Number.EPSILON) * 100) / 100;
 }
 
 function escapar(t) {

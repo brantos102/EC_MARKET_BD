@@ -66,6 +66,7 @@ export async function renderLayout(container) {
     <div class="tabs">
       <button class="tab active" data-v="mapa">Mapa del local</button>
       <button class="tab" data-v="tresd">Vista 3D</button>
+      <button class="tab" data-v="acomodar">Acomodar el local</button>
       <button class="tab" data-v="tabla">Posiciones</button>
       <button class="tab" data-v="estructuras">Estructuras</button>
       <button class="tab" data-v="ocupacion">Ocupación</button>
@@ -89,21 +90,28 @@ export async function renderLayout(container) {
   pintar('mapa', vista, container);
 }
 
-/** Libera la escena 3D al salir del módulo. */
+/** Libera la escena 3D y el editor del plano al salir del módulo. */
 export function cerrarLayout() {
   if (escena) {
     escena.destruir();
     escena = null;
+  }
+  if (editorPlano) {
+    editorPlano.destruir();
+    editorPlano = null;
   }
 }
 
 function pintar(cual, vista, container) {
   // La escena 3D ocupa memoria de la tarjeta gráfica: se suelta al
   // cambiar de pestaña y se vuelve a crear si el usuario regresa.
-  if (cual !== 'tresd') cerrarLayout();
+  if (cual !== 'tresd' && cual !== 'acomodar') cerrarLayout();
+  else if (cual === 'tresd' && editorPlano) { editorPlano.destruir(); editorPlano = null; }
+  else if (cual === 'acomodar' && escena) { escena.destruir(); escena = null; }
 
   if (cual === 'mapa') vistaMapa(vista);
   else if (cual === 'tresd') vista3D(vista);
+  else if (cual === 'acomodar') vistaAcomodar(vista, container);
   else if (cual === 'tabla') vistaTabla(vista);
   else if (cual === 'estructuras') vistaEstructuras(vista, container);
   else vistaOcupacion(vista);
@@ -269,6 +277,202 @@ async function vista3D(destino) {
         exactamente la misma información en dos dimensiones.</p>
       </div>`;
   }
+}
+
+// =========================================================
+// Acomodar el local: arrastrar los muebles a donde están
+//
+// El plano 3D dibujaba los muebles en fila porque nadie le había dicho
+// dónde están de verdad. Aquí se le dice, arrastrando sobre la planta.
+// Lo que se acomoda en esta pestaña es exactamente lo que se ve en la
+// vista 3D: leen las mismas coordenadas.
+// =========================================================
+let editorPlano = null;
+
+async function vistaAcomodar(destino, container) {
+  destino.innerHTML = `
+    <div class="panel">
+      <div class="acomodar-barra">
+        <div class="acomodar-acciones">
+          <button type="button" id="ac-girar" class="btn-secundario" disabled>Girar 90°</button>
+          <button type="button" id="ac-guardar" class="btn-primary" disabled>Guardar posición</button>
+          <button type="button" id="ac-local" class="btn-secundario">Medidas del local</button>
+        </div>
+        <span class="ayuda-3d">Arrastre cada mueble a donde está en la tienda. Se pega a la
+        rejilla de 10 cm y no se puede sacar de la sala.</span>
+      </div>
+
+      <div class="acomodar-cuerpo">
+        <div id="plano-editor" class="plano-editor"></div>
+        <aside class="acomodar-ficha" id="ac-ficha">
+          <p class="nota">Toque un mueble para acomodarlo.</p>
+        </aside>
+      </div>
+      <p id="ac-msg" class="form-msg"></p>
+    </div>`;
+
+  const msg = destino.querySelector('#ac-msg');
+  const ficha = destino.querySelector('#ac-ficha');
+  const btnGirar = destino.querySelector('#ac-girar');
+  const btnGuardar = destino.querySelector('#ac-guardar');
+
+  let actual = null;
+  let pendiente = null;      // {id, x, y, rot}
+
+  const { crearEditorPlano } = await import('./lib/plano-editor.js');
+
+  editorPlano = crearEditorPlano(destino.querySelector('#plano-editor'), {
+    estructuras,
+    alSeleccionar: (e) => {
+      actual = e;
+      btnGirar.disabled = !e;
+      pintarFicha(e);
+    },
+    alMover: (id, x, y, rot) => {
+      pendiente = { id, x, y, rot };
+      btnGuardar.disabled = false;
+      msg.textContent = 'Movido. Pulse «Guardar posición» para dejarlo así.';
+      msg.className = 'form-msg';
+    },
+  });
+
+  function pintarFicha(e) {
+    if (!e) {
+      ficha.innerHTML = '<p class="nota">Toque un mueble para acomodarlo.</p>';
+      return;
+    }
+    ficha.innerHTML = `
+      <h4>${escapar(e.literal)} · ${escapar(e.nombre)}</h4>
+      <div class="comp-linea"><span>Tipo</span><b>${escapar(e.tipo_nombre ?? e.tipo)}</b></div>
+      <div class="comp-linea"><span>Medidas</span><b>${e.ancho_cm} × ${e.fondo_cm} × ${e.alto_cm} cm</b></div>
+      <div class="comp-linea"><span>Posiciones</span><b>${e.columnas} columnas × ${e.niveles} niveles</b></div>
+      <div class="comp-linea"><span>Esquina</span><b>x ${e.pos_x_cm} · y ${e.pos_y_cm} cm</b></div>
+      <div class="comp-linea"><span>Giro</span><b>${e.rotacion_grados ?? 0}°</b></div>
+      <label class="ancho-completo">Calle o pasillo
+        <input type="text" id="ac-calle" value="${escapar(e.calle ?? '')}"
+               placeholder="Calle 1, Fondo, Caja…" />
+      </label>
+      <p class="nota">La calle no entra en el código de posición —ese ya está impreso en la
+      percha— pero sí en la dirección que se le da a una persona:
+      «${escapar(e.calle || 'Calle 1')}, ${escapar(e.literal)}, columna 03, nivel 1».</p>`;
+  }
+
+  btnGirar.addEventListener('click', () => {
+    if (!actual) return;
+    const e = editorPlano.girar(actual.estructura_id ?? actual.id, 90);
+    actual = e;
+    pintarFicha(e);
+  });
+
+  btnGuardar.addEventListener('click', async () => {
+    if (!pendiente) return;
+    btnGuardar.disabled = true;
+    msg.textContent = 'Guardando…';
+    msg.className = 'form-msg';
+
+    const calle = destino.querySelector('#ac-calle')?.value?.trim() ?? null;
+    const r = await guardarMovimiento(pendiente, calle, false);
+
+    if (r?.estado === 'SOLAPE') {
+      // No se guarda por las malas: hay casos reales en que dos muebles
+      // sí comparten lugar (un frigorífico empotrado en una góndola),
+      // así que se pregunta en vez de decidir por el operador.
+      abrirModal({
+        titulo: 'Ese sitio ya está ocupado',
+        contenido: `<p>${escapar(r.mensaje)}</p>`,
+        botones: [
+          { texto: 'Lo muevo', clase: 'btn-secundario', accion: () => {
+              cerrarModal();
+              btnGuardar.disabled = false;
+              msg.textContent = 'Arrástrelo a un sitio libre.';
+              msg.className = 'form-msg';
+            } },
+          { texto: 'Sí van juntos, guardar', clase: 'btn-primary', accion: async () => {
+              cerrarModal();
+              const r2 = await guardarMovimiento(pendiente, calle, true);
+              terminar(r2);
+            } },
+        ],
+      });
+      return;
+    }
+    terminar(r);
+  });
+
+  function terminar(r) {
+    const malo = ['ERROR', 'FUERA'].includes(r?.estado);
+    msg.textContent = r?.mensaje ?? 'Guardado.';
+    msg.className = `form-msg ${malo ? 'error' : 'ok'}`;
+    btnGuardar.disabled = !malo;
+    if (!malo) pendiente = null;
+  }
+
+  async function guardarMovimiento(p, calle, forzar) {
+    const { data, error } = await supabase.rpc('fn_mover_estructura', {
+      p_estructura_id: p.id,
+      p_x: p.x,
+      p_y: p.y,
+      p_rotacion: p.rot,
+      p_calle: calle,
+      p_forzar: forzar,
+    });
+    if (error) return { estado: 'ERROR', mensaje: error.message };
+
+    const r = Array.isArray(data) ? data[0] : data;
+    if (!['SOLAPE', 'ERROR', 'FUERA'].includes(r?.estado)) {
+      // Se refleja en el arreglo que comparten las cinco pestañas, para
+      // que la vista 3D lo muestre ya movido sin recargar la pantalla.
+      const e = estructuras.find((x) => (x.estructura_id ?? x.id) === p.id);
+      if (e) { e.pos_x_cm = p.x; e.pos_y_cm = p.y; e.rotacion_grados = p.rot; e.calle = calle ?? e.calle; }
+    }
+    return r;
+  }
+
+  destino.querySelector('#ac-local').addEventListener('click', () => abrirMedidasLocal(container));
+}
+
+/**
+ * Las medidas de la sala. Sin ellas el plano no sabe dónde está la
+ * pared y amontona todo contra el origen.
+ */
+function abrirMedidasLocal(container) {
+  const sedeId = estructuras[0]?.sede_id;
+  const ancho = estructuras[0]?.ancho_local_cm ?? 800;
+  const fondo = estructuras[0]?.fondo_local_cm ?? 600;
+
+  abrirModal({
+    titulo: 'Medidas de la sala de ventas',
+    contenido: `
+      <p class="nota">De pared a pared, en centímetros. Con estas dos medidas el plano se
+      dibuja a escala: el pasillo que se ve entre dos góndolas es el pasillo que va a quedar.</p>
+      <label class="ancho-completo">Ancho (de izquierda a derecha)
+        <input type="number" id="ml-ancho" min="100" max="10000" step="10" value="${ancho}" />
+      </label>
+      <label class="ancho-completo">Fondo (de la puerta al fondo)
+        <input type="number" id="ml-fondo" min="100" max="10000" step="10" value="${fondo}" />
+      </label>
+      <p id="ml-msg" class="form-msg"></p>`,
+    botones: [
+      { texto: 'Cancelar', clase: 'btn-secundario', accion: cerrarModal },
+      { texto: 'Guardar', clase: 'btn-primary', accion: async (modal) => {
+          const m = modal.querySelector('#ml-msg');
+          m.textContent = 'Guardando…';
+          m.className = 'form-msg';
+          const { error } = await supabase.from('sedes').update({
+            ancho_local_cm: Number(modal.querySelector('#ml-ancho').value),
+            fondo_local_cm: Number(modal.querySelector('#ml-fondo').value),
+          }).eq('id', sedeId);
+
+          if (error) {
+            m.textContent = error.message;
+            m.className = 'form-msg error';
+            return;
+          }
+          cerrarModal();
+          renderLayout(container);
+        } },
+    ],
+  });
 }
 
 // =========================================================
@@ -599,63 +803,221 @@ function buscar(texto, container) {
   });
 }
 
+/**
+ * Todo lo que hay en una posición, para contestar de pie frente a la
+ * percha: qué producto es, cuánto queda, a cuánto se vende, qué costó y
+ * qué lotes están por caducar. Desde aquí se puede sumar a la venta en
+ * curso —para mostrárselo a un cliente— o pedirlo al proveedor, sin
+ * tener que ir a otra pantalla y buscar el producto otra vez.
+ */
 async function abrirDetallePosicion(codigo) {
   const p = posiciones.find((x) => x.codigo === codigo);
   if (!p) return;
 
+  const bajoMinimo = p.producto_id
+    && Number(p.stock) <= Number(p.stock_minimo ?? 0)
+    && Number(p.stock_minimo ?? 0) > 0;
+
   abrirModal({
     titulo: `Posición ${codigo}`,
+    ancho: '34rem',
     contenido: `
       <div class="comprobante">
-        <div class="comp-linea"><span>Mueble</span><b>${escapar(p.literal)} · ${escapar(p.estructura)}</b></div>
-        <div class="comp-linea"><span>Columna / nivel</span><b>${String(p.columna).padStart(2, '0')} / ${p.nivel}</b></div>
+        <div class="comp-linea"><span>Dirección</span>
+          <b>${escapar(p.calle ? `${p.calle} · ` : '')}${escapar(p.literal)} ·
+             columna ${String(p.columna).padStart(2, '0')} · nivel ${p.nivel}</b></div>
+        <div class="comp-linea"><span>Mueble</span><b>${escapar(p.estructura)}</b></div>
         <div class="comp-linea"><span>Conservación</span><b>${escapar(p.temperatura)}</b></div>
         ${p.producto ? `
           <div class="comp-linea"><span>Producto</span><b>${escapar(p.producto)}</b></div>
           <div class="comp-linea"><span>Código</span><b>${escapar(p.producto_codigo ?? '')}</b></div>
-          <div class="comp-linea"><span>Categoría</span><b>${escapar(p.categoria ?? '—')}</b></div>
-          <div class="comp-linea grande"><span>Stock</span>
+          <div class="comp-linea"><span>Marca / categoría</span>
+            <b>${escapar(p.marca ?? '—')} · ${escapar(p.categoria ?? '—')}</b></div>
+          <div class="comp-linea grande ${bajoMinimo ? 'alerta' : ''}"><span>Existencia</span>
             <b>${Number(p.stock).toFixed(2)} ${escapar(p.unidad ?? '')}</b></div>
+          ${Number(p.stock_minimo ?? 0) > 0
+            ? `<div class="comp-linea"><span>Mínimo</span>
+                 <b>${Number(p.stock_minimo).toFixed(2)} ${escapar(p.unidad ?? '')}</b></div>` : ''}
+          <div class="comp-linea"><span>Precio al público</span>
+            <b>$${Number(p.precio_venta_menor ?? 0).toFixed(2)}</b></div>
+          <div class="comp-linea"><span>Precio al por mayor</span>
+            <b>$${Number(p.precio_venta_mayor ?? 0).toFixed(2)}</b></div>
+          ${p.costo_promedio != null ? `
+            <div class="comp-linea"><span>Costo promedio</span>
+              <b>$${Number(p.costo_promedio).toFixed(4)}</b></div>
+            <div class="comp-linea"><span>Valor en esta posición</span>
+              <b>$${Number(p.valor_en_posicion ?? 0).toFixed(2)}</b></div>` : ''}
+          ${bajoMinimo
+            ? '<p class="aviso-inline">Está en el mínimo o por debajo: toca reponer.</p>' : ''}
         ` : '<p class="nota">Esta posición está libre.</p>'}
       </div>
-      <div id="lotes-posicion">${p.producto_id ? '<p class="loading">Cargando lotes…</p>' : ''}</div>`,
-    botones: [{ texto: 'Cerrar', clase: 'btn-primary', accion: cerrarModal }],
+
+      <div id="presentaciones-posicion"></div>
+      <div id="lotes-posicion">${p.producto_id ? '<p class="loading">Cargando lotes…</p>' : ''}</div>
+      <p id="dp-msg" class="form-msg"></p>`,
+    botones: p.producto_id
+      ? [
+          { texto: 'Cerrar', clase: 'btn-secundario', accion: cerrarModal },
+          { texto: 'Sumar a la venta', clase: 'btn-secundario', accion: sumarAVenta },
+          { texto: 'Pedir al proveedor', clase: 'btn-primary', accion: pedirAlProveedor },
+        ]
+      : [{ texto: 'Cerrar', clase: 'btn-primary', accion: cerrarModal }],
     alAbrir: async (modal) => {
       if (!p.producto_id) return;
-      const caja = modal.querySelector('#lotes-posicion');
-
-      const { data, error } = await supabase
-        .from('v_lotes_disponibles')
-        .select('codigo_lote, fecha_caducidad, cantidad_disponible')
-        .eq('producto_id', p.producto_id)
-        .limit(20);
-
-      if (error) {
-        caja.innerHTML = '<p class="nota">No se pudieron leer los lotes.</p>';
-        return;
-      }
-      if (!data?.length) {
-        caja.innerHTML = '<p class="nota">Lotes disponibles: este producto no maneja lotes.</p>';
-        return;
-      }
-
-      caja.innerHTML = `
-        <h4>Lotes disponibles</h4>
-        <table class="dyn-table">
-          <thead><tr><th>Lote</th><th>Caduca</th><th>Disponible</th></tr></thead>
-          <tbody>
-            ${data.map((l) => `
-              <tr>
-                <td>${escapar(l.codigo_lote ?? '—')}</td>
-                <td>${l.fecha_caducidad
-                      ? new Date(l.fecha_caducidad + 'T00:00:00').toLocaleDateString('es-EC')
-                      : '—'}</td>
-                <td>${Number(l.cantidad_disponible).toFixed(2)}</td>
-              </tr>`).join('')}
-          </tbody>
-        </table>`;
+      await pintarPresentaciones(modal);
+      await pintarLotes(modal);
     },
   });
+
+  /** Cómo se vende: por unidad, por caja, y a cuánto sale el bulto. */
+  async function pintarPresentaciones(modal) {
+    const caja = modal.querySelector('#presentaciones-posicion');
+    const { data, error } = await supabase
+      .from('v_stock_presentacion')
+      .select('presentacion, factor, lectura, se_vende_asi, precio_bulto')
+      .eq('producto_id', p.producto_id);
+
+    if (error || !data?.length) { caja.innerHTML = ''; return; }
+
+    caja.innerHTML = `
+      <h4>Cómo está contado</h4>
+      <table class="dyn-table">
+        <thead><tr><th>Presentación</th><th>Equivale a</th><th>Se vende así</th><th>Precio</th></tr></thead>
+        <tbody>
+          ${data.map((r) => `
+            <tr>
+              <td>${escapar(r.presentacion)}</td>
+              <td>${escapar(r.lectura)}</td>
+              <td>${r.se_vende_asi ? 'Sí' : '—'}</td>
+              <td>${r.precio_bulto == null ? '—' : `$${Number(r.precio_bulto).toFixed(2)}`}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>`;
+  }
+
+  async function pintarLotes(modal) {
+    const caja = modal.querySelector('#lotes-posicion');
+    const { data, error } = await supabase
+      .from('v_lotes_disponibles')
+      .select('codigo_lote, fecha_caducidad, cantidad_disponible, dias_para_caducar, estado_caducidad')
+      .eq('producto_id', p.producto_id)
+      .limit(20);
+
+    if (error) {
+      caja.innerHTML = '<p class="nota">No se pudieron leer los lotes.</p>';
+      return;
+    }
+    if (!data?.length) {
+      caja.innerHTML = '<p class="nota">Este producto no maneja lotes.</p>';
+      return;
+    }
+
+    caja.innerHTML = `
+      <h4>Lotes disponibles (se despacha primero el que caduca antes)</h4>
+      <table class="dyn-table">
+        <thead><tr><th>Lote</th><th>Caduca</th><th>Faltan</th><th>Disponible</th></tr></thead>
+        <tbody>
+          ${data.map((l) => `
+            <tr class="${l.estado_caducidad === 'VENCIDO' ? 'row-danger'
+                        : l.estado_caducidad === 'POR_VENCER' ? 'row-warning' : ''}">
+              <td>${escapar(l.codigo_lote ?? '—')}</td>
+              <td>${l.fecha_caducidad
+                    ? new Date(l.fecha_caducidad + 'T00:00:00').toLocaleDateString('es-EC')
+                    : '—'}</td>
+              <td>${l.dias_para_caducar == null ? '—' : `${l.dias_para_caducar} días`}</td>
+              <td>${Number(l.cantidad_disponible).toFixed(2)}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>`;
+  }
+
+  /**
+   * Sumar a la venta en curso. Sirve para lo que pidió el operador:
+   * estar frente a la percha con un cliente, mostrarle qué hay y
+   * cargarlo sin volver a la caja a buscarlo por nombre.
+   */
+  async function sumarAVenta(modal) {
+    const msg = modal.querySelector('#dp-msg');
+    const { data } = await supabase
+      .from('v_pos_productos').select('*').eq('producto_id', p.producto_id).limit(1);
+
+    const producto = data?.[0];
+    if (!producto) {
+      msg.textContent = 'Ese producto no está disponible para la venta en esta bodega.';
+      msg.className = 'form-msg error';
+      return;
+    }
+    const { agregar } = await import('./lib/venta-activa.js');
+    const r = agregar(producto);
+    msg.textContent = r.mensaje ?? (r.ok ? 'Agregado a la venta.' : 'No se pudo agregar.');
+    msg.className = `form-msg ${r.ok ? 'ok' : 'error'}`;
+  }
+
+  /**
+   * Pedir al proveedor desde aquí. El bodeguero ve el hueco en la
+   * percha y lo pide en ese momento; si tiene que anotarlo en un papel
+   * para pedirlo después, la mitad de las veces no se pide.
+   */
+  async function pedirAlProveedor(modal) {
+    const msg = modal.querySelector('#dp-msg');
+    const sugerido = Math.max(
+      Number(p.stock_minimo ?? 0) * 2 - Number(p.stock ?? 0), 1);
+
+    modal.querySelector('#lotes-posicion').insertAdjacentHTML('beforebegin', `
+      <div class="panel-pedido">
+        <h4>Pedido de ${escapar(p.producto)}</h4>
+        <label>Proveedor
+          <select id="dp-proveedor"><option value="">Cargando…</option></select>
+        </label>
+        <label>Cantidad (${escapar(p.unidad ?? 'un')})
+          <input type="number" id="dp-cantidad" min="0.001" step="0.001"
+                 value="${Number(sugerido).toFixed(0)}" />
+        </label>
+        <button type="button" id="dp-enviar" class="btn-primary">Crear la orden</button>
+      </div>`);
+
+    const sel = modal.querySelector('#dp-proveedor');
+    const { data: provs } = await supabase
+      .from('proveedores').select('id, razon_social, nombre_comercial')
+      .eq('activo', true).order('razon_social');
+
+    sel.innerHTML = (provs ?? []).map((x) =>
+      `<option value="${x.id}">${escapar(x.nombre_comercial ?? x.razon_social)}</option>`).join('')
+      || '<option value="">No hay proveedores cargados</option>';
+
+    modal.querySelector('#dp-enviar').addEventListener('click', async () => {
+      if (!sel.value) {
+        msg.textContent = 'Elija el proveedor.';
+        msg.className = 'form-msg error';
+        return;
+      }
+      msg.textContent = 'Creando la orden…';
+      msg.className = 'form-msg';
+
+      const { error } = await supabase.rpc('fn_crear_orden_compra', {
+        p_proveedor_id: sel.value,
+        p_items: [{
+          producto_id: p.producto_id,
+          cantidad: Number(modal.querySelector('#dp-cantidad').value),
+          costo: Number(p.costo_promedio ?? 0),
+        }],
+        p_observaciones: `Pedido desde la posición ${codigo}`,
+      });
+
+      if (error) {
+        // El rol de cajero no puede generar órdenes: se dice así, no
+        // con el mensaje de PostgreSQL.
+        msg.textContent = /rol no puede|permission|42501/i.test(error.message)
+          ? 'Su usuario no puede generar órdenes de compra. Avise al supervisor.'
+          : error.message;
+        msg.className = 'form-msg error';
+        return;
+      }
+      msg.textContent = 'Orden creada. Queda en Compras → Órdenes para revisarla y enviarla.';
+      msg.className = 'form-msg ok';
+      modal.querySelector('#dp-enviar').disabled = true;
+    });
+  }
 }
 
 // =========================================================

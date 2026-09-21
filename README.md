@@ -90,6 +90,11 @@ En el proyecto de Supabase → **SQL Editor** → pegar y ejecutar **en orden**:
 | 10 | `db/010_operacion_multisede.sql` | Sedes con numeración propia, cantidades por unidad, catálogo de roles y permisos editables, correo y plantillas, órdenes de compra, De Una |
 | 11 | `db/011_instalacion_deuna.sql` | Asistente de instalación, tipo de negocio bloqueado tras instalar, cobro De Una sin código |
 | 12 | `db/012_estructuras_servicios.sql` | Estructuras físicas y ubicaciones `ECM-A-01-1`, recargas y servicios, accesos externos |
+| 13 | `db/013_seguridad_vistas.sql` | **Cierra un agujero real**: las vistas se saltaban las políticas RLS (`security_invoker`). Agrega `v_lotes_disponibles` |
+| 14 | `db/014_impresion_termica.sql` | Ancho del rollo de la impresora térmica (80 o 58 mm) configurable por empresa |
+| 15 | `db/015_presentaciones_codigos.sql` | Presentaciones de compra con factor de conversión (caja → unidad), **todos** los códigos de barras de cada producto, cotejo de recepción y sugerencia de precios |
+| 16 | `db/016_plano_editable.sql` | Medidas del local, calles, y movimiento de muebles con control de solape |
+| 17 | `db/017_facturas_proveedor.sql` | Ingreso desde el XML de la factura del proveedor y equivalencias aprendidas por proveedor |
 
 Si aparece el error *"new row violates row-level security policy"* y no puedes
 aplicar la 008 completa, ejecuta **`db/FIX_RLS_URGENTE.sql`**: es el arreglo

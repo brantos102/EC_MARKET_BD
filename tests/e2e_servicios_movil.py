@@ -337,6 +337,49 @@ with sync_playwright() as p:
     revisar("y no arrastra la página entera", desborde_tabla <= 1,
             f"(desborda {desborde_tabla} px)")
 
+    # ---------------------------------------------------------
+    # Imprimir desde el celular. Es el mismo recibo y el mismo formato
+    # de rollo: lo que cambia es que en el teléfono no hay lector ni
+    # impresora conectada por USB, así que el diálogo del navegador es
+    # el que manda el trabajo (a una impresora de red, o a "Guardar como
+    # PDF" para enviarlo por WhatsApp).
+    print("\n--- Imprimir el recibo desde el celular")
+    movil.evaluate("""
+      window.__IMPRESIONES = 0;
+      window.__ESTADO_MOVIL = null;
+      window.print = () => {
+        window.__IMPRESIONES += 1;
+        const caja = document.getElementById('comprobante-impresion');
+        const estilo = document.getElementById('comprobante-impresion-estilo');
+        window.__ESTADO_MOVIL = {
+          hayCaja: Boolean(caja),
+          css: estilo ? estilo.textContent : '',
+          papel: caja ? caja.dataset.papelMm : null,
+          imagenes: caja ? caja.querySelectorAll('img, svg, canvas').length : -1,
+        };
+      };
+    """)
+    movil.evaluate("""async () => {
+      const m = await import('/web/js/lib/comprobante.js');
+      await m.imprimirComprobante('venta-1');
+    }""")
+    movil.wait_for_timeout(500)
+
+    est = movil.evaluate("window.__ESTADO_MOVIL")
+    revisar("desde el teléfono también se manda a imprimir", est is not None)
+    if est:
+        revisar("y sale con el mismo formato de rollo, no en A4",
+                "80mm" in est["css"] and "210mm" not in est["css"])
+        revisar("el recibo del teléfono tampoco lleva logotipo",
+                est["imagenes"] == 0, f"({est['imagenes']} imágenes)")
+        revisar("la maqueta no depende del ancho de la pantalla del teléfono",
+                est["papel"] == "80", f"(papel={est['papel']})")
+
+    movil.evaluate("window.dispatchEvent(new Event('afterprint'))")
+    movil.wait_for_timeout(200)
+    revisar("y al terminar la pantalla del celular queda limpia",
+            movil.evaluate("document.getElementById('comprobante-impresion') === null"))
+
     print("\n--- Errores de JavaScript")
     revisar("ninguna pantalla lanzó un error de JavaScript",
             len(errores_js) == 0, f"({errores_js[:2]})")

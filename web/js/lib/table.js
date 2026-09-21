@@ -4,7 +4,11 @@
 /**
  * @param {HTMLElement} container
  * @param {{
- *   columns: {key: string, label: string, sortable?: boolean, format?: (v:any,row:any)=>string, numeric?: boolean}[],
+ *   columns: {
+ *     key: string, label: string, sortable?: boolean, numeric?: boolean,
+ *     format?: (v:any,row:any)=>string,
+ *     elemento?: (row:any) => HTMLElement,   // celda con controles propios
+ *   }[],
  *   rows: any[],
  *   searchable?: boolean,
  *   emptyMessage?: string,
@@ -115,8 +119,15 @@ export function renderTable(container, opts) {
       if (extraClass) tr.className = extraClass;
       columns.forEach((col) => {
         const td = document.createElement('td');
-        const raw = row[col.key];
-        td.textContent = col.format ? col.format(raw, row) : raw ?? '';
+        if (col.elemento) {
+          // Celdas con controles (un botón por fila, por ejemplo). Se
+          // arma el nodo y se cuelga: nada de innerHTML con datos, que
+          // es por donde entra el HTML inyectado desde la base.
+          td.appendChild(col.elemento(row));
+        } else {
+          const raw = row[col.key];
+          td.textContent = col.format ? col.format(raw, row) : raw ?? '';
+        }
         tr.appendChild(td);
       });
       tbody.appendChild(tr);

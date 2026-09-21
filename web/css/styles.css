@@ -1081,7 +1081,28 @@ body.modo-pos .main-content { padding: 1.25rem 1.5rem; }
 .peso-input:focus { outline: none; }
 .peso-unidad { font-size: 0.95rem; color: var(--marca-oscuro); font-weight: 600; }
 .peso-importe { text-align: center; font-size: 0.8rem; color: var(--muted); }
-.peso-importe b { color: var(--text); font-size: 1rem; }
+.peso-importe b { color: var(--text); font-size: 1.15rem; }
+.peso-exacto { display: block; font-size: 0.72rem; color: var(--muted); }
+
+/* Precio por unidad, editable desde el teclado de peso: la libra de
+   pollo cambia de precio y el cajero tiene al cliente enfrente. */
+.peso-precio {
+  display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
+  justify-content: center; margin: 0.5rem 0;
+}
+.peso-precio label { font-size: 0.78rem; color: var(--muted); }
+.peso-precio-campo {
+  display: flex; align-items: center; gap: 0.2rem;
+  border: 1px solid var(--border); border-radius: 6px; padding: 0.15rem 0.4rem;
+}
+.peso-precio-campo input {
+  width: 5.5rem; border: none; outline: none; font-size: 1rem;
+  font-weight: 600; background: transparent; color: inherit;
+}
+.badge-precio {
+  display: inline-block; background: #fef3c7; color: #92400e; padding: 0.05rem 0.4rem;
+  border-radius: 4px; font-size: 0.7rem; margin-left: 0.35rem; font-weight: 600;
+}
 
 .peso-teclado { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.4rem; }
 .peso-tecla {
@@ -1685,3 +1706,242 @@ img, video, canvas, embed, iframe { max-width: 100%; }
   .modal { max-height: 96vh; }
   .peso-teclado .peso-tecla { padding: 0.5rem 0; }
 }
+
+.lista-migraciones { margin: 0.4rem 0 0.6rem 1.2rem; font-size: 0.86rem; line-height: 1.8; }
+.lista-migraciones code { background: #fff; padding: 0.1rem 0.35rem; border-radius: 4px; }
+
+/* =========================================================
+   Escáner con la cámara del celular
+   ========================================================= */
+.escaner-visor {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: #000;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.escaner-visor video,
+.escaner-visor canvas {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+}
+/* Quagga inserta su propio canvas de depuración encima del vídeo; se
+   deja el vídeo y se oculta el dibujo, que en el celular solo estorba. */
+.escaner-visor canvas.drawingBuffer { display: none; }
+
+/* La mira no decora: le dice al operador dónde poner el código. Sin
+   ella la gente acerca el teléfono de más y la cámara no enfoca. */
+.escaner-mira {
+  position: absolute;
+  left: 8%; right: 8%; top: 30%; height: 40%;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  border-radius: 6px;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+.escaner-mira::after {
+  content: ''; position: absolute; left: 0; right: 0; top: 50%;
+  border-top: 2px solid rgba(239, 68, 68, 0.85);
+}
+.escaner-estado {
+  text-align: center; font-size: 0.85rem; color: var(--muted); margin: 0.5rem 0;
+}
+.escaner-estado-error { color: var(--error); }
+.escaner-manual {
+  display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;
+  margin-top: 0.6rem;
+}
+.escaner-manual label { font-size: 0.78rem; color: var(--muted); }
+.escaner-manual input {
+  flex: 1 1 10rem; min-width: 0;
+  padding: 0.45rem 0.5rem; border: 1px solid var(--border); border-radius: 6px;
+  font-size: 1rem; letter-spacing: 0.04em;
+}
+.btn-escanear {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  padding: 0.4rem 0.6rem; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--surface); cursor: pointer; font-size: 0.9rem;
+}
+.btn-escanear:hover { border-color: var(--brand); }
+
+/* El campo de escaneo con su botón de cámara al lado. En el celular el
+   botón tiene que caber sin empujar el campo fuera de la pantalla. */
+.scan-fila { display: flex; gap: 0.4rem; align-items: stretch; }
+.scan-fila .scan-input { flex: 1 1 auto; min-width: 0; }
+.scan-fila .btn-escanear { flex: 0 0 auto; font-size: 1.1rem; }
+
+/* =========================================================
+   Recepción de mercadería
+   ========================================================= */
+.recepcion-scan {
+  background: var(--surface-2, #f6f8f6);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.7rem 0.8rem;
+  margin-bottom: 0.9rem;
+}
+.recepcion-scan > label {
+  display: block; font-weight: 600; margin-bottom: 0.35rem; font-size: 0.9rem;
+}
+.recepcion-scan .scan-fila input {
+  font-size: 1.1rem; letter-spacing: 0.05em;
+  padding: 0.5rem 0.6rem; border: 1px solid var(--border); border-radius: 6px;
+}
+
+.form-recepcion {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 0.6rem 0.8rem;
+  align-items: end;
+}
+.form-recepcion label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.8rem; color: var(--muted); }
+.form-recepcion label input,
+.form-recepcion label select {
+  padding: 0.4rem 0.5rem; border: 1px solid var(--border); border-radius: 6px;
+  font-size: 0.95rem; min-width: 0;
+}
+.form-recepcion .fr-producto { grid-column: 1 / -1; }
+.fr-calculo {
+  grid-column: 1 / -1;
+  background: #eef6ef; border-left: 3px solid var(--brand, #17803A);
+  padding: 0.5rem 0.7rem; border-radius: 4px; font-size: 0.9rem;
+}
+.fr-diferencia { color: #92400e; font-weight: 600; }
+.fr-acciones {
+  grid-column: 1 / -1;
+  display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;
+}
+.cotejo-panel {
+  margin-top: 1.2rem; padding-top: 0.8rem; border-top: 1px dashed var(--border);
+}
+.cotejo-panel h4 { margin: 0 0 0.5rem; font-size: 0.95rem; }
+.form-msg.aviso { color: #92400e; }
+.aviso-inline {
+  background: #fef3c7; border-left: 3px solid #d97706; color: #7c2d12;
+  padding: 0.5rem 0.7rem; border-radius: 4px; margin: 0.5rem 0; font-size: 0.88rem;
+}
+.aviso-inline ul { margin: 0.3rem 0 0 1rem; padding: 0; }
+.tabla-precios td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 640px) {
+  .form-recepcion { grid-template-columns: 1fr 1fr; }
+  .form-recepcion .fr-producto { grid-column: 1 / -1; }
+}
+
+/* Ficha de producto: presentaciones y códigos */
+.ficha-producto section { margin-bottom: 1.4rem; }
+.ficha-producto section h4 { margin: 0 0 0.3rem; font-size: 0.95rem; }
+.ficha-producto .inline-form { margin-top: 0.6rem; }
+.btn-mini { padding: 0.15rem 0.5rem; font-size: 0.78rem; }
+.row-inactiva { opacity: 0.55; text-decoration: line-through; }
+.chk { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.82rem; }
+
+/* =========================================================
+   Acomodar el local: el plano visto desde arriba, a escala
+   ========================================================= */
+.acomodar-barra {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 0.6rem; flex-wrap: wrap; margin-bottom: 0.7rem;
+}
+.acomodar-acciones { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.acomodar-cuerpo {
+  display: grid; grid-template-columns: minmax(0, 1fr) 17rem; gap: 1rem; align-items: start;
+}
+.acomodar-ficha {
+  border: 1px solid var(--border); border-radius: 8px; padding: 0.7rem; min-width: 0;
+}
+.acomodar-ficha h4 { margin: 0 0 0.5rem; font-size: 0.95rem; }
+.acomodar-ficha input {
+  width: 100%; padding: 0.35rem 0.5rem; border: 1px solid var(--border); border-radius: 6px;
+}
+
+/* Sitio para las cotas, que van fuera del rectángulo del local */
+.plano-editor { min-width: 0; overflow: auto; padding: 1.4rem 0 0 3rem; }
+.plano-marco { display: inline-block; }
+.plano-lienzo {
+  position: relative;
+  background-color: #fbfaf7;
+  /* Una línea por metro: da escala sin tener que medir nada */
+  background-image:
+    linear-gradient(to right, rgba(0,0,0,0.07) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0,0,0,0.07) 1px, transparent 1px);
+  border: 2px solid #9aa79c;
+  border-radius: 3px;
+  touch-action: none;   /* el dedo arrastra el mueble, no la página */
+}
+.plano-medida {
+  position: absolute; font-size: 0.7rem; color: var(--muted); pointer-events: none;
+}
+.plano-medida-ancho { top: -1.1rem; left: 50%; transform: translateX(-50%); }
+.plano-medida-fondo { left: -2.6rem; top: 50%; transform: translateY(-50%); }
+
+.plano-mueble {
+  position: absolute;
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  border-radius: 2px;
+  box-sizing: border-box;
+  cursor: grab;
+  overflow: hidden;
+  display: flex; flex-direction: column; justify-content: center; align-items: center;
+  padding: 2px; text-align: center; line-height: 1.1;
+  user-select: none;
+}
+.plano-mueble.arrastrando { cursor: grabbing; opacity: 0.85; z-index: 5; }
+.plano-mueble.seleccionado { outline: 3px solid var(--brand, #17803A); outline-offset: -1px; z-index: 4; }
+/* Dos muebles en el mismo sitio: se ve mientras se arrastra, no al guardar */
+.plano-mueble.solapado { outline: 3px solid var(--error, #b91c1c); outline-offset: -1px; }
+.pm-literal { font-weight: 700; font-size: 0.78rem; }
+.pm-nombre { font-size: 0.62rem; opacity: 0.8; }
+.pm-calle { font-size: 0.6rem; opacity: 0.7; font-style: italic; }
+.pm-medida { font-size: 0.55rem; opacity: 0.6; }
+.plano-mueble[data-tipo="FRIGORIFICO"],
+.plano-mueble[data-tipo="NEVERA"] { border-style: double; border-width: 3px; }
+.plano-mueble[data-tipo="MOSTRADOR"] { border-width: 2px; }
+
+@media (max-width: 860px) {
+  .acomodar-cuerpo { grid-template-columns: 1fr; }
+  .plano-editor { padding-left: 2.4rem; }
+}
+
+/* Pedir desde la posición del plano */
+.panel-pedido {
+  border: 1px solid var(--border); border-radius: 8px; padding: 0.7rem;
+  margin: 0.8rem 0; display: grid; gap: 0.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); align-items: end;
+}
+.panel-pedido h4 { grid-column: 1 / -1; margin: 0; font-size: 0.92rem; }
+.panel-pedido label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.78rem; color: var(--muted); }
+.panel-pedido input, .panel-pedido select {
+  padding: 0.35rem 0.5rem; border: 1px solid var(--border); border-radius: 6px; min-width: 0;
+}
+.comp-linea.alerta b { color: var(--error, #b91c1c); }
+.row-danger td { background: #fee2e2; }
+
+/* =========================================================
+   Traer la factura del proveedor desde su XML
+   ========================================================= */
+.panel-importar { border-left: 3px solid var(--brand, #17803A); }
+.importar-caja {
+  border: 2px dashed var(--border); border-radius: 8px;
+  padding: 0.9rem; text-align: center; background: #fbfdfb;
+  display: flex; flex-direction: column; gap: 0.4rem; align-items: center;
+}
+.importar-caja.arrastrando { border-color: var(--brand, #17803A); background: #eef6ef; }
+.importar-caja span { font-size: 0.82rem; color: var(--muted); }
+
+.imp-resumen {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: 0.5rem; margin: 0.6rem 0 0.9rem;
+}
+.imp-resumen div { display: flex; flex-direction: column; }
+.imp-resumen span { font-size: 0.72rem; color: var(--muted); }
+
+.tabla-importacion td.num, .tabla-importacion th.num {
+  text-align: right; font-variant-numeric: tabular-nums;
+}
+.tabla-importacion select { max-width: 15rem; padding: 0.25rem; }
+.tabla-importacion input[type="number"] { width: 5rem; padding: 0.25rem; text-align: right; }
+.tabla-importacion .nota { font-size: 0.7rem; }

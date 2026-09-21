@@ -165,6 +165,44 @@ export function cambiarCantidad(productoId, cantidad) {
   return ajuste.ok ? { ok: true } : { ok: false, mensaje: ajuste.mensaje };
 }
 
+/**
+ * Fija a mano el precio por unidad de una línea.
+ *
+ * PARA QUÉ. Lo que se vende al peso cambia de precio seguido: la libra
+ * de pollo sube, la de papa baja con la cosecha. El cajero tiene el
+ * producto en la balanza y el cliente delante; obligarlo a irse a
+ * Administración a corregir el precio antes de cobrar es la forma
+ * segura de que termine cobrando el precio viejo.
+ *
+ * El precio fijado vale SOLO para esta línea y esta venta: se clona el
+ * producto para no tocar el catálogo que comparten las demás pantallas.
+ * Guardarlo en el producto es una acción aparte y explícita.
+ *
+ * Se anula el salto automático a precio de mayorista, porque un precio
+ * escrito a mano que la aplicación cambie sola sería peor que no
+ * poder escribirlo.
+ */
+export function fijarPrecioUnitario(productoId, precio) {
+  const linea = estado.lineas.find((l) => l.producto.producto_id === productoId);
+  if (!linea) return { ok: false, mensaje: 'Esa línea ya no está en la venta' };
+
+  const p = Number(precio);
+  if (!Number.isFinite(p) || p <= 0) {
+    return { ok: false, mensaje: 'El precio tiene que ser mayor que cero' };
+  }
+
+  linea.producto = {
+    ...linea.producto,
+    precio_venta_menor: p,
+    precio_venta_mayor: p,
+    cantidad_minima_mayor: 0,
+    precio_original: linea.producto.precio_original ?? Number(linea.producto.precio_venta_menor ?? 0),
+    precio_editado: true,
+  };
+  notificar();
+  return { ok: true };
+}
+
 export function vaciar() {
   estado.lineas = [];
   notificar();

@@ -31,4 +31,9 @@ aplicar db/009_comprobantes_clientes.sql
 aplicar db/010_operacion_multisede.sql
 aplicar db/011_instalacion_deuna.sql
 aplicar db/012_estructuras_servicios.sql
-echo "OK — migraciones 001-012 aplicadas sin error"
+aplicar db/013_seguridad_vistas.sql
+aplicar db/014_impresion_termica.sql
+aplicar db/015_presentaciones_codigos.sql
+aplicar db/016_plano_editable.sql
+aplicar db/017_facturas_proveedor.sql
+echo "OK — migraciones 001-017 aplicadas sin error"

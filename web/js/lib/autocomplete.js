@@ -20,7 +20,7 @@
  *   secundario?: (item) => string,
  *   valor: (item) => string,
  *   coincideExacto?: (item, texto: string) => boolean,
- *   alElegir: (item) => void,
+ *   alElegir: (item, textoEscrito: string) => void,
  *   alLimpiar?: () => void,
  *   maximo?: number,
  *   abrirAlEnfocar?: boolean,
@@ -123,12 +123,18 @@ export function autocompletar(input, opciones) {
 
   function elegir(item) {
     if (!item) return;
+    // Lo que estaba escrito ANTES de reemplazarlo por el nombre del
+    // producto. Quien escucha necesita saberlo: si lo que se escaneó
+    // fue el código de una caja de 12, el carrito tiene que sumar 12 y
+    // no 1, y esa información se perdía al pisar el campo.
+    const crudo = input.value.trim();
+
     elegido = item;
     input.value = texto(item);
     input.dataset.valor = valor(item);
     input.classList.add('ac-elegido');
     cerrar();
-    alElegir(item);
+    alElegir(item, crudo);
   }
 
   function limpiarSeleccion() {

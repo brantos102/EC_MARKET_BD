@@ -496,12 +496,23 @@ export async function crearEscena(contenedor, opciones = {}) {
       return { muebles: 0 };
     }
 
-    // Tamaño del local: lo que ocupen los muebles más un margen de
-    // circulación. Si el local fuera fijo, una tienda grande se saldría.
-    const maxX = Math.max(...activas.map((e) => (e.pos_x_cm + e.ancho_cm))) * CM;
-    const maxY = Math.max(...activas.map((e) => (e.pos_y_cm + e.fondo_cm))) * CM;
-    const anchoM = Math.max(maxX + 1.5, 6);
-    const fondoM = Math.max(maxY + 1.5, 5);
+    // Tamaño del local. Si la sede tiene sus medidas cargadas se usan
+    // esas: el plano se parece al local de verdad, con su espacio de
+    // circulación y sus paredes donde están. Si no, se deduce de lo que
+    // ocupen los muebles más un margen, que es lo que había antes.
+    const medido = activas.find((e) => Number(e.ancho_local_cm) > 0);
+    let anchoM;
+    let fondoM;
+
+    if (medido) {
+      anchoM = Number(medido.ancho_local_cm) * CM;
+      fondoM = Number(medido.fondo_local_cm) * CM;
+    } else {
+      const maxX = Math.max(...activas.map((e) => (e.pos_x_cm + e.ancho_cm))) * CM;
+      const maxY = Math.max(...activas.map((e) => (e.pos_y_cm + e.fondo_cm))) * CM;
+      anchoM = Math.max(maxX + 1.5, 6);
+      fondoM = Math.max(maxY + 1.5, 5);
+    }
 
     construirLocal(anchoM, fondoM);
 

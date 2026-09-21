@@ -102,18 +102,21 @@
         nombre: 'Perecibles', tipo: 'ESTANTERIA', tipo_nombre: 'Estantería mural',
         columnas: 2, niveles: 2, ancho_cm: 120, alto_cm: 200, fondo_cm: 45,
         pos_x_cm: 20, pos_y_cm: 40, rotacion_grados: 0, temperatura: 'AMBIENTE',
+        calle: 'Calle 1', ancho_local_cm: 800, fondo_local_cm: 600,
         color_hex: '#d8dee0', doble_cara: false, activa: true, orden: 10,
         posiciones: 4, posiciones_ocupadas: 2, ocupacion_pct: 50.0 },
       { estructura_id: 'est-i', sede_id: 'sede-1', codigo_nave: 'ECM', literal: 'I',
         nombre: 'Snacks', tipo: 'ESTANTERIA', tipo_nombre: 'Estantería mural',
         columnas: 2, niveles: 2, ancho_cm: 120, alto_cm: 200, fondo_cm: 45,
         pos_x_cm: 180, pos_y_cm: 40, rotacion_grados: 0, temperatura: 'AMBIENTE',
+        calle: 'Calle 1', ancho_local_cm: 800, fondo_local_cm: 600,
         color_hex: '#d8dee0', doble_cara: false, activa: true, orden: 20,
         posiciones: 4, posiciones_ocupadas: 1, ocupacion_pct: 25.0 },
       { estructura_id: 'est-fr1', sede_id: 'sede-1', codigo_nave: 'ECM', literal: 'FR1',
         nombre: 'Frigorífico de bebidas', tipo: 'FRIGORIFICO', tipo_nombre: 'Frigorífico vertical',
         columnas: 2, niveles: 2, ancho_cm: 80, alto_cm: 200, fondo_cm: 65,
         pos_x_cm: 340, pos_y_cm: 40, rotacion_grados: 0, temperatura: 'REFRIGERADO',
+        calle: 'Calle 2', ancho_local_cm: 800, fondo_local_cm: 600,
         color_hex: '#bcd4e6', doble_cara: false, activa: true, orden: 30,
         posiciones: 4, posiciones_ocupadas: 0, ocupacion_pct: 0.0 },
     ],
@@ -122,7 +125,9 @@
         estructura: 'Perecibles', tipo: 'ESTANTERIA', temperatura: 'AMBIENTE',
         sede_id: 'sede-1', codigo_nave: 'ECM', columna: 1, nivel: 1, activa: true,
         producto_id: 'prod-limon', producto_codigo: 'FRU-013', producto: 'Limón sutil',
-        marca: null, categoria: 'Frutas', stock: 40, unidad: 'LB' },
+        marca: null, categoria: 'Frutas', stock: 40, unidad: 'LB', calle: 'Calle 1',
+        stock_minimo: 25, precio_venta_menor: 0.8, precio_venta_mayor: 0.6,
+        costo_promedio: 0.45, valor_en_posicion: 18 },
       { ubicacion_id: 'u2', codigo: 'ECM-A-01-2', estructura_id: 'est-a', literal: 'A',
         estructura: 'Perecibles', tipo: 'ESTANTERIA', temperatura: 'AMBIENTE',
         sede_id: 'sede-1', codigo_nave: 'ECM', columna: 1, nivel: 2, activa: true,
@@ -132,7 +137,9 @@
         estructura: 'Perecibles', tipo: 'ESTANTERIA', temperatura: 'AMBIENTE',
         sede_id: 'sede-1', codigo_nave: 'ECM', columna: 2, nivel: 1, activa: true,
         producto_id: 'prod-pina', producto_codigo: 'FRU-020', producto: 'Piña',
-        marca: null, categoria: 'Frutas', stock: 0, unidad: 'UND' },
+        marca: null, categoria: 'Frutas', stock: 0, unidad: 'UND', calle: 'Calle 1',
+        stock_minimo: 5, precio_venta_menor: 1.2, precio_venta_mayor: 1.0,
+        costo_promedio: 0.7, valor_en_posicion: 0 },
       { ubicacion_id: 'u4', codigo: 'ECM-A-02-2', estructura_id: 'est-a', literal: 'A',
         estructura: 'Perecibles', tipo: 'ESTANTERIA', temperatura: 'AMBIENTE',
         sede_id: 'sede-1', codigo_nave: 'ECM', columna: 2, nivel: 2, activa: true,
@@ -142,7 +149,9 @@
         estructura: 'Snacks', tipo: 'ESTANTERIA', temperatura: 'AMBIENTE',
         sede_id: 'sede-1', codigo_nave: 'ECM', columna: 1, nivel: 1, activa: true,
         producto_id: 'prod-ruffles', producto_codigo: 'SNK-001', producto: 'Papas Ruffles 140g',
-        marca: 'Ruffles', categoria: 'Snacks', stock: 12, unidad: 'UND' },
+        marca: 'Ruffles', categoria: 'Snacks', stock: 12, unidad: 'UND', calle: 'Calle 1',
+        stock_minimo: 6, precio_venta_menor: 2.35, precio_venta_mayor: 2.0,
+        costo_promedio: 1.6, valor_en_posicion: 19.2 },
       { ubicacion_id: 'u6', codigo: 'ECM-I-01-2', estructura_id: 'est-i', literal: 'I',
         estructura: 'Snacks', tipo: 'ESTANTERIA', temperatura: 'AMBIENTE',
         sede_id: 'sede-1', codigo_nave: 'ECM', columna: 1, nivel: 2, activa: true,
@@ -483,12 +492,20 @@
         bodega_id: BODEGA,
         stock: 40,
         ubicacion: 'PER-A-01-1',
+        codigos: [{ codigo: '7861000100014', unidades: 1, presentacion: null, precio: null }],
       },
       {
         producto_id: 'prod-ruffles',
         codigo: 'SNK-001',
         ean13: '7861000100021',
         nombre: 'Papas Ruffles 140g',
+        // Dos códigos vivos a la vez: el de la funda y el de la caja de
+        // 12. Es el caso real del proveedor que entrega en caja y el
+        // market vende por unidad.
+        codigos: [
+          { codigo: '7861000100021', unidades: 1, presentacion: null, precio: null },
+          { codigo: '7861000100045', unidades: 12, presentacion: 'Caja x 12', precio: 9.6 },
+        ],
         marca: 'Ruffles',
         categoria_id: 'cat-snk',
         categoria: 'Snacks',
@@ -506,11 +523,116 @@
         ubicacion: 'SNK-I-02-1',
       },
     ],
+
+    // Lo que necesita el papel de la venta. ancho_papel_mm es lo que
+    // decide si el recibo se maqueta para el rollo de 80 mm o el de 58:
+    // sin este dato la prueba de impresión no comprobaría nada real.
+    v_comprobante: [
+      {
+        venta_id: 'venta-1',
+        numero_interno: 'VTA-2026-00001',
+        numero_comprobante: '001-001-000000001',
+        tipo_comprobante: 'NOTA_VENTA',
+        confirmada_at: '2026-09-20T14:59:27-05:00',
+        cajero_nombre: 'prueba@itsanet.com',
+        tipo_venta: 'MENOR',
+        subtotal: 9.0,
+        descuento: 0,
+        valor_impuesto: 0.87,
+        total: 9.87,
+        estado: 'CONFIRMADA',
+        tipo_identificacion: 'CONSUMIDOR_FINAL',
+        cliente_identificacion: '9999999999999',
+        cliente_nombre: 'CONSUMIDOR FINAL',
+        cliente_direccion: null,
+        cliente_telefono: null,
+        razon_social: 'MINIMARKET EL CULTIVO',
+        nombre_comercial: 'Minimarket El Cultivo',
+        ruc: '1728605070001',
+        direccion_matriz: 'Quito',
+        direccion_establecimiento: 'Sobre la avenida Manuel Córdova Galarza',
+        empresa_telefono: '0984719370',
+        empresa_email: 'mati_98x@hotmail.com',
+        obligado_contabilidad: false,
+        contribuyente_especial: null,
+        ambiente: 'PRUEBAS',
+        pie_recibo: 'Frescura y calidad en cada compra',
+        logo_url: 'data:image/png;base64,iVBORw0KGgo=',
+        ancho_papel_mm: 80,
+      },
+    ],
+    venta_detalle: [
+      { cantidad: 1, precio_unitario: 0.35, descuento: 0, subtotal: 0.35, valor_impuesto: 0,
+        productos: { codigo: 'FRU-001', nombre: 'Guineo de seda', codigo_impuesto: 'IVA_0' } },
+      { cantidad: 4, precio_unitario: 1.45, descuento: 0, subtotal: 5.8, valor_impuesto: 0.87,
+        productos: { codigo: 'BEB-001', nombre: 'Coca-Cola 1.35L', codigo_impuesto: 'IVA_GENERAL' } },
+      { cantidad: 1, precio_unitario: 2.85, descuento: 0, subtotal: 2.85, valor_impuesto: 0,
+        productos: { codigo: 'ABA-001', nombre: 'Arroz Flor 2kg', codigo_impuesto: 'IVA_0' } },
+    ],
+    pagos_venta: [
+      { forma_pago: 'EFECTIVO', monto: 9.87, recibido: 10, cambio: 0.13, codigo_transaccion: null },
+    ],
+
+    // --- Migración 015: presentaciones y códigos ---
+    presentaciones: [
+      { id: 'pres-ruf-base', producto_id: 'prod-ruffles', nombre: 'Unidad', tipo: 'UNIDAD',
+        factor: 1, es_base: true, para_compra: true, para_venta: false, activo: true },
+      { id: 'pres-ruf-caja', producto_id: 'prod-ruffles', nombre: 'Caja x 12', tipo: 'CAJA',
+        factor: 12, es_base: false, para_compra: true, para_venta: true, precio_venta: 9.6,
+        activo: true },
+      { id: 'pres-lim-base', producto_id: 'prod-limon', nombre: 'Libra', tipo: 'UNIDAD',
+        factor: 1, es_base: true, para_compra: true, para_venta: false, activo: true },
+    ],
+    v_stock_presentacion: [
+      { producto_id: 'prod-limon', presentacion: 'Libra', factor: 1, lectura: '40 LB',
+        se_vende_asi: false, precio_bulto: null, stock_unidades: 40 },
+      { producto_id: 'prod-ruffles', presentacion: 'Unidad', factor: 1, lectura: '12 UND',
+        se_vende_asi: false, precio_bulto: null, stock_unidades: 12 },
+      { producto_id: 'prod-ruffles', presentacion: 'Caja x 12', factor: 12,
+        lectura: '1 x Caja x 12', se_vende_asi: true, precio_bulto: 9.6, stock_unidades: 12 },
+    ],
+    v_producto_codigos: [
+      { producto_id: 'prod-limon', codigo: '7861000100014', tipo: 'EAN13', principal: true,
+        activo: true, presentacion_id: null, unidades_por_lectura: 1, producto: 'Limón sutil' },
+      { producto_id: 'prod-ruffles', codigo: '7861000100021', tipo: 'EAN13', principal: true,
+        activo: true, presentacion_id: null, unidades_por_lectura: 1, producto: 'Papas Ruffles 140g' },
+      { producto_id: 'prod-ruffles', codigo: '7861000100045', tipo: 'EAN13', principal: false,
+        activo: true, presentacion_id: 'pres-ruf-caja', unidades_por_lectura: 12,
+        producto: 'Papas Ruffles 140g' },
+    ],
+    ingreso_detalle: [],
+    v_recepcion_vs_orden: [],
+    ordenes_compra: [
+      { id: 'oc-1', numero: 'OC-2026-00001', estado: 'ENVIADA', proveedor_id: 'prov-1',
+        fecha_requerida: '2026-09-25' },
+    ],
+    productos: [
+      { id: 'prod-limon', codigo: 'FRU-013', nombre: 'Limón sutil', ean13: '7861000100014',
+        maneja_lote: false, unidad_medida: 'LB', paso_venta: 0.5, categoria_id: 'cat-fru',
+        precio_venta_menor: 0.8, permite_fraccion: true, activo: true,
+        unidades_medida: { permite_fraccion: true } },
+      { id: 'prod-ruffles', codigo: 'SNK-001', nombre: 'Papas Ruffles 140g',
+        ean13: '7861000100021', maneja_lote: false, unidad_medida: 'UND', paso_venta: 1,
+        categoria_id: 'cat-snk', precio_venta_menor: 2.35, permite_fraccion: false, activo: true,
+        unidades_medida: { permite_fraccion: false } },
+    ],
+    proveedor_producto: [],
+    proveedores: [
+      { id: 'prov-1', ruc: '1790012345001', nombre_comercial: 'Distribuidora Andina',
+        razon_social: 'DISTRIBUIDORA ANDINA S.A.', activo: true },
+    ],
+    documentos_ingreso: [
+      { id: 'doc-1', numero_interno: 'ING-2026-00001', numero_documento: '001-001-000000123',
+        tipo_documento: 'FACTURA', fecha_recepcion: '2026-09-20', subtotal: 45, valor_impuesto: 0,
+        total: 45, estado: 'BORRADOR', clave_acceso: null, origen: 'MANUAL',
+        proveedores: { nombre_comercial: 'Distribuidora Andina' } },
+    ],
   };
 
   // Valores que devuelven los insert/update encadenados con .select().single()
   const RESPUESTAS_INSERT = {
     ventas: { id: 'venta-1', numero_interno: 'VTA-2026-00001' },
+    documentos_ingreso: { id: 'doc-1', numero_interno: 'ING-2026-00001' },
   };
 
   function consulta(tabla) {
@@ -619,6 +741,148 @@
   };
 
   async function rpc(nombre, args) {
+    // --- Migración 015 ---
+    if (nombre === 'fn_traducir_factura') {
+      // Refleja lo que hace la base: lo ya emparejado entra solo, el
+      // código de barras de la factura reconoce el producto, y un
+      // parecido por nombre se ofrece pero NO se da por bueno.
+      const lineas = args.p_lineas ?? [];
+      return {
+        data: lineas.map((l, i) => {
+          const mapa = DATOS.proveedor_producto.find(
+            (m) => m.proveedor_id === args.p_proveedor_id
+                && m.codigo_proveedor === String(l.codigo).toUpperCase());
+          if (mapa) {
+            const p = DATOS.productos.find((x) => x.id === mapa.producto_id);
+            return { indice: i + 1, codigo_proveedor: l.codigo, descripcion: l.descripcion,
+              cantidad_factura: l.cantidad, precio_factura: l.precioUnitario,
+              producto_id: mapa.producto_id, producto: p?.nombre, unidad: p?.unidad_medida,
+              factor: mapa.factor, cantidad_real: l.cantidad * mapa.factor,
+              costo_unitario: l.precioUnitario / mapa.factor,
+              reconocido: true, sugerencia_id: null, sugerencia: null,
+              motivo: 'Emparejado en una factura anterior' };
+          }
+          const porCodigo = DATOS.v_producto_codigos.find(
+            (c) => c.activo && c.codigo === String(l.codigoAux ?? ''));
+          if (porCodigo) {
+            const p = DATOS.productos.find((x) => x.id === porCodigo.producto_id);
+            return { indice: i + 1, codigo_proveedor: l.codigo, descripcion: l.descripcion,
+              cantidad_factura: l.cantidad, precio_factura: l.precioUnitario,
+              producto_id: porCodigo.producto_id, producto: p?.nombre, unidad: p?.unidad_medida,
+              factor: 1, cantidad_real: l.cantidad, costo_unitario: l.precioUnitario,
+              reconocido: true, sugerencia_id: porCodigo.producto_id, sugerencia: p?.nombre,
+              motivo: 'Reconocido por el código de barras que trae la factura' };
+          }
+          return { indice: i + 1, codigo_proveedor: l.codigo, descripcion: l.descripcion,
+            cantidad_factura: l.cantidad, precio_factura: l.precioUnitario,
+            producto_id: null, producto: null, unidad: null, factor: 1,
+            cantidad_real: l.cantidad, costo_unitario: l.precioUnitario,
+            reconocido: false, sugerencia_id: null, sugerencia: null,
+            motivo: 'Sin equivalencia: elija el producto o créelo' };
+        }),
+        error: null,
+      };
+    }
+    if (nombre === 'fn_vincular_producto_proveedor') {
+      window.__ESCRITURAS.push({ tabla: 'rpc:fn_vincular_producto_proveedor',
+                                 operacion: 'rpc', payload: args });
+      DATOS.proveedor_producto = DATOS.proveedor_producto.filter(
+        (m) => !(m.proveedor_id === args.p_proveedor_id
+                 && m.codigo_proveedor === String(args.p_codigo_proveedor).toUpperCase()));
+      DATOS.proveedor_producto.push({
+        proveedor_id: args.p_proveedor_id,
+        codigo_proveedor: String(args.p_codigo_proveedor).toUpperCase(),
+        producto_id: args.p_producto_id,
+        factor: Number(args.p_factor) || 1,
+      });
+      return { data: [{ estado: 'OK', mensaje: 'Equivalencia guardada.' }], error: null };
+    }
+    if (nombre === 'fn_mover_estructura') {
+      window.__ESCRITURAS.push({ tabla: 'rpc:fn_mover_estructura', operacion: 'rpc', payload: args });
+      const e = DATOS.v_estructuras_ocupacion.find((x) => x.estructura_id === args.p_estructura_id);
+      // Solape contra los demás muebles, igual que en la base
+      const huella = (m) => {
+        const r = ((Number(m.rotacion_grados ?? 0) % 360) + 360) % 360;
+        return (r === 90 || r === 270)
+          ? { a: m.fondo_cm, f: m.ancho_cm } : { a: m.ancho_cm, f: m.fondo_cm };
+      };
+      const mia = huella({ ...e, rotacion_grados: args.p_rotacion });
+      const choque = DATOS.v_estructuras_ocupacion.find((o) => {
+        if (o.estructura_id === args.p_estructura_id || !o.activa) return false;
+        const h = huella(o);
+        return args.p_x < o.pos_x_cm + h.a && args.p_x + mia.a > o.pos_x_cm
+            && args.p_y < o.pos_y_cm + h.f && args.p_y + mia.f > o.pos_y_cm;
+      });
+      if (choque && !args.p_forzar) {
+        return { data: [{ estado: 'SOLAPE',
+          mensaje: `Ahí ya está ${choque.literal} (${choque.nombre}).` }], error: null };
+      }
+      if (e) {
+        e.pos_x_cm = args.p_x; e.pos_y_cm = args.p_y;
+        e.rotacion_grados = args.p_rotacion ?? e.rotacion_grados;
+        if (args.p_calle) e.calle = args.p_calle;
+      }
+      return { data: [{ estado: choque ? 'GUARDADO_CON_SOLAPE' : 'OK',
+        mensaje: `${e?.literal ?? ''} queda en x=${args.p_x}, y=${args.p_y}.` }], error: null };
+    }
+    if (nombre === 'fn_registrar_codigo_producto') {
+      window.__ESCRITURAS.push({ tabla: 'rpc:fn_registrar_codigo_producto', operacion: 'rpc', payload: args });
+      const yaEs = DATOS.v_producto_codigos.find((c) => c.codigo === args.p_codigo);
+      if (yaEs && yaEs.producto_id !== args.p_producto_id) {
+        return { data: [{ estado: 'CONFLICTO',
+          mensaje: `El código ${args.p_codigo} ya pertenece a otro producto.`, codigo_id: null }], error: null };
+      }
+      DATOS.v_producto_codigos.push({
+        producto_id: args.p_producto_id, codigo: args.p_codigo, tipo: args.p_tipo ?? 'EAN13',
+        principal: false, activo: true, presentacion_id: args.p_presentacion_id ?? null,
+        unidades_por_lectura: 1,
+      });
+      return { data: [{ estado: 'AGREGADO',
+        mensaje: `Código ${args.p_codigo} agregado. El código anterior sigue funcionando.`,
+        codigo_id: 'cod-nuevo' }], error: null };
+    }
+    if (nombre === 'fn_agregar_linea_ingreso') {
+      window.__ESCRITURAS.push({ tabla: 'rpc:fn_agregar_linea_ingreso', operacion: 'rpc', payload: args });
+      const pres = DATOS.presentaciones.find((x) => x.id === args.p_presentacion_id);
+      const factor = Number(pres?.factor ?? 1);
+      const cantidad = Number(args.p_bultos) * factor;
+      const doc = args.p_bultos_documento == null
+        ? cantidad : Number(args.p_bultos_documento) * factor;
+      const prod = DATOS.v_pos_productos.find((x) => x.producto_id === args.p_producto_id);
+
+      DATOS.ingreso_detalle.push({
+        cantidad,
+        cantidad_documento: doc,
+        bultos: Number(args.p_bultos),
+        costo_unitario: Number(args.p_costo_bulto) / factor,
+        costo_bulto: Number(args.p_costo_bulto),
+        subtotal: cantidad * (Number(args.p_costo_bulto) / factor),
+        codigo_lote: args.p_codigo_lote ?? null,
+        fecha_caducidad: args.p_fecha_caducidad ?? null,
+        codigo_verificado: Boolean(args.p_codigo_escaneado),
+        presentaciones: pres ? { nombre: pres.nombre, factor } : null,
+        productos: { codigo: prod?.codigo ?? '—', nombre: prod?.nombre ?? '—',
+                     unidad_medida: prod?.unidad ?? 'UND' },
+      });
+
+      if (cantidad !== doc) {
+        return { data: [{ estado: 'DIFERENCIA',
+          mensaje: `Anotado: la factura dice ${doc} y se recibieron ${cantidad}.`,
+          detalle_id: 'det-1' }], error: null };
+      }
+      return { data: [{ estado: 'OK',
+        mensaje: `${args.p_bultos} x ${factor} = ${cantidad} unidades.`,
+        detalle_id: 'det-1' }], error: null };
+    }
+    if (nombre === 'fn_sugerir_precios') {
+      const costo = Number(args.p_costo_unitario);
+      const pm = Math.ceil(costo * 1.25 * 100) / 100;
+      const py = Math.ceil(costo * 1.12 * 100) / 100;
+      return { data: [{ costo_unitario: costo, margen_menor: 25, precio_menor: pm,
+        margen_mayor: 12, precio_mayor: py, utilidad_menor: pm - costo,
+        utilidad_mayor: py - costo,
+        nota: `Sugerencia: $${pm} la unidad al público y $${py} al por mayor.` }], error: null };
+    }
     if (nombre === 'fn_mi_perfil') {
       return { data: [{ usuario_id: 'u-1', nombre: 'prueba@itsanet.com', rol: 'ADMIN',
                         bodega_id: BODEGA, tipo_negocio: 'MARKET' }], error: null };

@@ -412,12 +412,34 @@ async function vistaEmpresa(destino) {
         <label class="ancho-completo">Pie del recibo
           <input name="pie_recibo" value="${v(e.pie_recibo)}" />
         </label>
+
+        <div class="ancho-completo bloque-logo">
+          <h4>Impresora de recibos</h4>
+          <p class="nota">Elija el ancho del rollo que usa la térmica del mostrador.
+          El recibo se maqueta con esa medida exacta: si se escoge mal, la columna de
+          los valores sale cortada o el papel queda con un margen enorme a la derecha.
+          Lo normal en Ecuador es el rollo de <b>80 mm</b>; el de 58 mm se ve en
+          impresoras portátiles y de parqueadero.</p>
+          <label>Ancho del rollo
+            <select name="ancho_papel_mm">
+              <option value="80" ${Number(e.ancho_papel_mm) === 58 ? '' : 'selected'}>80 mm (estándar de mostrador)</option>
+              <option value="58" ${Number(e.ancho_papel_mm) === 58 ? 'selected' : ''}>58 mm (portátil)</option>
+            </select>
+          </label>
+          <p class="nota">En el diálogo de impresión del navegador, el destino debe ser
+          la térmica y los márgenes «Ninguno». Si aparece «A4», es que está seleccionada
+          otra impresora.</p>
+        </div>
+
         <div class="ancho-completo bloque-logo">
           <h4>Logotipo</h4>
           <p class="nota">Se usa en el menú, en la pantalla de ingreso, en el ícono de
-          la pestaña y en el recibo impreso. La imagen se reduce a 256 px antes de
+          la pestaña y en los reportes en PDF. La imagen se reduce a 256 px antes de
           guardarla: así el logotipo se ve nítido y la aplicación sigue abriendo rápido
           (un PNG de varios megabytes dentro de la base haría lenta cada carga de la caja).</p>
+          <p class="nota">En el recibo de la térmica no se imprime: esa impresora
+          trabaja a 203 puntos por pulgada y en un solo color, así que un logotipo sale
+          como una mancha gris, gasta papel y hace más lenta cada venta.</p>
           <div class="logo-editor">
             <img id="logo-previa" class="logo-previa"
                  src="${e.logo_url || 'img/logo-menu.png'}" alt="Vista previa del logotipo" />
@@ -622,6 +644,7 @@ async function vistaEmpresa(destino) {
     const payload = Object.fromEntries(fd.entries());
     payload.obligado_contabilidad = fd.get('obligado_contabilidad') === 'on';
     payload.deuna_activo = fd.get('deuna_activo') === 'on';
+    payload.ancho_papel_mm = Number(fd.get('ancho_papel_mm')) === 58 ? 58 : 80;
     for (const k of Object.keys(payload)) {
       if (payload[k] === '') payload[k] = null;
     }

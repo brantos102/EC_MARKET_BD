@@ -2,6 +2,11 @@
 // Un solo modal a la vez; se cierra con Escape o clic en el fondo.
 
 let contenedorActual = null;
+// Lo que hay que hacer al cerrar, se cierre como se cierre: con el
+// botón, con Escape o pulsando el fondo. Sin esto, un modal que dejó
+// algo encendido —la cámara del escáner, por ejemplo— lo dejaba
+// encendido al salir por cualquier camino que no fuera su propio botón.
+let alCerrarActual = null;
 
 /**
  * @param {{
@@ -9,6 +14,7 @@ let contenedorActual = null;
  *   contenido: string,
  *   botones?: {texto:string, clase?:string, accion:Function, id?:string}[],
  *   alAbrir?: (modal: HTMLElement) => void,
+ *   alCerrar?: () => void,
  *   ancho?: string,
  * }} opts
  */
@@ -51,6 +57,7 @@ export function abrirModal(opts) {
   contenedorActual = fondo;
 
   document.addEventListener('keydown', alPresionarEscape);
+  alCerrarActual = opts.alCerrar ?? null;
   opts.alAbrir?.(modal);
   return modal;
 }
@@ -60,6 +67,12 @@ export function cerrarModal() {
     contenedorActual.remove();
     contenedorActual = null;
     document.removeEventListener('keydown', alPresionarEscape);
+
+    const alCerrar = alCerrarActual;
+    alCerrarActual = null;
+    // Se llama al final y aislado: si la limpieza falla, el modal ya
+    // desapareció de la pantalla igual.
+    try { alCerrar?.(); } catch (err) { console.error(err); }
   }
 }
 
