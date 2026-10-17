@@ -401,6 +401,20 @@ async function vistaAcomodar(destino, container) {
 
   function terminar(r) {
     const malo = ['ERROR', 'FUERA'].includes(r?.estado);
+
+    // Un error de la base que en realidad es una migración sin aplicar
+    // merece la explicación completa, no la cadena de PostgREST. El
+    // operador no tiene por qué saber qué es un "schema cache".
+    if (r?.error) {
+      const explicado = traducirErrorSupabase(r.error);
+      if (explicado.includes('aviso-migracion')) {
+        msg.innerHTML = explicado;
+        msg.className = 'form-msg error';
+        btnGuardar.disabled = false;
+        return;
+      }
+    }
+
     msg.textContent = r?.mensaje ?? 'Guardado.';
     msg.className = `form-msg ${malo ? 'error' : 'ok'}`;
     btnGuardar.disabled = !malo;
@@ -416,7 +430,7 @@ async function vistaAcomodar(destino, container) {
       p_calle: calle,
       p_forzar: forzar,
     });
-    if (error) return { estado: 'ERROR', mensaje: error.message };
+    if (error) return { estado: 'ERROR', mensaje: error.message, error };
 
     const r = Array.isArray(data) ? data[0] : data;
     if (!['SOLAPE', 'ERROR', 'FUERA'].includes(r?.estado)) {

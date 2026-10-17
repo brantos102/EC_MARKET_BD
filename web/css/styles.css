@@ -1945,3 +1945,32 @@ img, video, canvas, embed, iframe { max-width: 100%; }
 .tabla-importacion select { max-width: 15rem; padding: 0.25rem; }
 .tabla-importacion input[type="number"] { width: 5rem; padding: 0.25rem; text-align: right; }
 .tabla-importacion .nota { font-size: 0.7rem; }
+
+/* =========================================================
+   Transformar productos (despiece y maquila)
+   ========================================================= */
+.tr-lineas { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 0.6rem; }
+.tr-linea {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) 7rem 4rem minmax(0, 1.4fr) 2rem;
+  gap: 0.4rem; align-items: center;
+}
+.tr-linea select, .tr-linea input {
+  padding: 0.35rem 0.45rem; border: 1px solid var(--border); border-radius: 6px; min-width: 0;
+}
+.tr-linea input { text-align: right; }
+.tr-info { font-size: 0.72rem; color: var(--muted); }
+.tr-info-alerta { color: #92400e; font-weight: 600; }
+.tr-resumen-cabecera { margin-bottom: 0.4rem; }
+.tabla-reparto { margin-top: 0.5rem; }
+.tabla-reparto td.num, .tabla-reparto th.num {
+  text-align: right; font-variant-numeric: tabular-nums;
+}
+.texto-alerta { color: var(--error, #b91c1c); font-weight: 600; }
+.panel-head { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; flex-wrap: wrap; }
+
+@media (max-width: 760px) {
+  .tr-linea { grid-template-columns: 1fr 1fr; }
+  .tr-linea select { grid-column: 1 / -1; }
+  .tr-info { grid-column: 1 / -1; }
+}

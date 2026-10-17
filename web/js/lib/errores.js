@@ -82,6 +82,55 @@ const MIGRACION_POR_TABLA = {
   proveedor_producto: '017_facturas_proveedor.sql',
 };
 
+/**
+ * Las FUNCIONES también viven en una migración, y cuando falta, PostgREST
+ * devuelve un mensaje distinto al de una tabla:
+ *
+ *   Could not find the function public.fn_mover_estructura(p_calle, …)
+ *   in the schema cache
+ *
+ * Sin este mapa ese texto no le dice nada al operador. Con él, la
+ * aplicación puede nombrar el archivo que hay que ejecutar.
+ */
+const MIGRACION_POR_FUNCION = {
+  fn_buscar_cliente: '009_comprobantes_clientes.sql',
+  fn_validar_identificacion: '009_comprobantes_clientes.sql',
+
+  fn_mi_perfil: '008_roles_seguridad.sql',
+  fn_rol_actual: '008_roles_seguridad.sql',
+
+  fn_mi_sede: '010_operacion_multisede.sql',
+  fn_mis_modulos: '010_operacion_multisede.sql',
+  fn_mi_perfil_completo: '010_operacion_multisede.sql',
+  fn_siguiente_comprobante: '010_operacion_multisede.sql',
+  fn_crear_orden_compra: '010_operacion_multisede.sql',
+  fn_enviar_orden_compra: '010_operacion_multisede.sql',
+  fn_renderizar_plantilla: '010_operacion_multisede.sql',
+  fn_encolar_correo: '010_operacion_multisede.sql',
+  fn_datos_correo_venta: '010_operacion_multisede.sql',
+
+  fn_estado_instalacion: '011_instalacion_deuna.sql',
+  fn_completar_instalacion: '011_instalacion_deuna.sql',
+
+  fn_crear_estructura: '012_estructuras_servicios.sql',
+  fn_redimensionar_estructura: '012_estructuras_servicios.sql',
+  fn_generar_ubicaciones: '012_estructuras_servicios.sql',
+  fn_codigo_ubicacion: '012_estructuras_servicios.sql',
+  fn_registrar_servicio: '012_estructuras_servicios.sql',
+  fn_anular_servicio: '012_estructuras_servicios.sql',
+
+  fn_buscar_por_codigo: '015_presentaciones_codigos.sql',
+  fn_registrar_codigo_producto: '015_presentaciones_codigos.sql',
+  fn_agregar_linea_ingreso: '015_presentaciones_codigos.sql',
+  fn_sugerir_precios: '015_presentaciones_codigos.sql',
+
+  fn_mover_estructura: '016_plano_editable.sql',
+  fn_caja_estructura: '016_plano_editable.sql',
+
+  fn_vincular_producto_proveedor: '017_facturas_proveedor.sql',
+  fn_traducir_factura: '017_facturas_proveedor.sql',
+};
+
 // v_comprobante se rehace en la 014 para llevar el ancho del rollo, así
 // que si falta hay que ejecutar desde la 009 igual: la lista de
 // pendientes que sale abajo ya incluye la 014 por ir después.
@@ -127,6 +176,38 @@ function pendientesDesde(migracion) {
  */
 export function traducirErrorSupabase(error, tablaEsperada) {
   const mensaje = error?.message ?? String(error);
+
+  // ----- Función que no existe (o existe con otros parámetros) -----
+  const funcion = mensaje.match(/Could not find the function public\.([a-z0-9_]+)/i)?.[1];
+  if (funcion) {
+    const migracion = MIGRACION_POR_FUNCION[funcion];
+    const pendientes = pendientesDesde(migracion);
+
+    return `
+      <div class="aviso-migracion">
+        <h3>Falta aplicar una migración en la base de datos</h3>
+        <p>Esta pantalla llama a <code>${funcion}()</code>, y su proyecto de Supabase
+        todavía no tiene esa función.</p>
+
+        ${migracion ? `
+          <p>La crea el archivo <b>db/${migracion}</b>. Como las migraciones van
+          encadenadas, desde ahí en adelante hay que ejecutar <b>todas</b>:</p>
+          <ol class="lista-migraciones">
+            ${pendientes.map((m) => `<li><code>db/${m}</code></li>`).join('')}
+          </ol>
+        ` : `
+          <p>Ejecute <code>db/000_diagnostico.sql</code> en el <b>SQL Editor</b> de Supabase:
+          le dirá qué archivos faltan y en qué orden.</p>`}
+
+        <p class="nota">Hay un segundo caso que da este mismo mensaje: que la función exista
+        pero con <b>otros parámetros</b>, de una versión anterior. Volver a ejecutar el archivo
+        la reemplaza y lo resuelve igual.</p>
+
+        <p class="nota">Y un tercero: que la función sí esté y lo que esté viejo sea el
+        <b>caché de PostgREST</b>. El diagnóstico lo refresca al terminar; si no, en Supabase
+        vaya a <b>Settings → API → Reload schema cache</b> y recargue esta página con Ctrl+F5.</p>
+      </div>`;
+  }
 
   const faltante = mensaje.match(/'public\.([a-z0-9_]+)'/i)?.[1] ?? tablaEsperada;
   const esTablaFaltante = /schema cache|does not exist|Could not find the table/i.test(mensaje);

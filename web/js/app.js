@@ -18,6 +18,7 @@ import { actualizarPanelVenta } from './lib/panel-venta.js';
 import { renderAdmin } from './admin.js';
 import { renderCompras } from './compras.js';
 import { renderServicios } from './servicios.js';
+import { renderTransformaciones } from './transformaciones.js';
 import { aplicarRolEnMenu, limpiarPerfil } from './lib/sesion.js';
 import { abrirPerfil } from './lib/perfil.js';
 import { marcarActivo } from './lib/menu.js';
@@ -39,6 +40,7 @@ const routes = {
   auditoria:    { render: renderAuditoria,    title: 'Bitácora de auditoría' },
   compras:      { render: renderCompras,      title: 'Compras a proveedores' },
   servicios:    { render: renderServicios,    title: 'Recargas y servicios' },
+  transformaciones: { render: renderTransformaciones, title: 'Transformar productos' },
   admin:        { render: renderAdmin,        title: 'Administración' },
 };
 

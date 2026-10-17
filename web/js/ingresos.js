@@ -31,6 +31,7 @@ import { normalizarCodigoEscaneado } from './lib/ean13.js';
 import { traducirErrorSupabase } from './lib/errores.js';
 import { abrirModal, cerrarModal } from './lib/modal.js';
 import { leerFacturaXML } from './lib/factura-xml.js';
+import { aplicarReglaCantidad } from './lib/cantidad.js';
 
 export async function renderIngresos(container) {
   container.innerHTML = `
@@ -829,13 +830,17 @@ async function renderNuevoIngreso(root) {
   function ajustarPasoBultos() {
     const p = productoActual();
     const suelto = !presentacionActual() || factorActual() === 1;
-    if (suelto && fraccionable(p)) {
-      campoBultos.min = '0.001'; campoBultos.step = '0.001';
-      campoBultosDoc.min = '0';  campoBultosDoc.step = '0.001';
-    } else {
-      campoBultos.min = '1'; campoBultos.step = '1';
-      campoBultosDoc.min = '0'; campoBultosDoc.step = '1';
-    }
+
+    // Los bultos se cuentan enteros SIEMPRE que haya presentación: no
+    // existe media caja. Solo cuando se recibe suelto algo que se pesa
+    // entra el decimal de la balanza. La regla sale de cantidad.js,
+    // escrita una sola vez para todo el sistema.
+    const comoSeCuenta = suelto
+      ? { ...p, permite_fraccion: fraccionable(p) }
+      : { ...p, permite_fraccion: false, unidad_medida: 'bulto' };
+
+    aplicarReglaCantidad(campoBultos, comoSeCuenta);
+    aplicarReglaCantidad(campoBultosDoc, comoSeCuenta, { minimoCero: true });
   }
 
   function recalcular() {

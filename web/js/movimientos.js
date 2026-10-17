@@ -1,5 +1,7 @@
 import { supabase } from './supabaseClient.js';
 import { procesarMovimiento } from './lib/costing.js';
+import { aplicarReglaCantidad, normalizar, formatear } from './lib/cantidad.js';
+import { traducirErrorSupabase } from './lib/errores.js';
 
 export async function renderMovimientos(container) {
   container.innerHTML = `
@@ -12,7 +14,8 @@ export async function renderMovimientos(container) {
         <option value="AJUSTE_POSITIVO">Ajuste (+)</option>
         <option value="AJUSTE_NEGATIVO">Ajuste (-)</option>
       </select>
-      <input type="number" id="mov-cantidad" placeholder="Cantidad" min="0.001" step="0.001" required />
+      <input type="number" id="mov-cantidad" placeholder="Cantidad" min="1" step="1" required />
+      <span id="mov-unidad" class="pista-unidad"></span>
       <input type="number" id="mov-costo" placeholder="Costo unitario (solo Entrada)" min="0" step="0.0001" />
       <input type="text" id="mov-referencia" placeholder="Referencia (factura/guía)" />
       <button type="submit">Registrar movimiento</button>
@@ -29,10 +32,48 @@ export async function renderMovimientos(container) {
   const preview = container.querySelector('#mov-preview');
   const msg = container.querySelector('#mov-msg');
 
-  const [{ data: productos }, { data: bodegas }] = await Promise.all([
-    supabase.from('productos').select('id, codigo, nombre').eq('activo', true).order('nombre'),
+  const pistaUnidad = container.querySelector('#mov-unidad');
+
+  const [{ data: productos, error: errProd }, { data: bodegas }] = await Promise.all([
+    supabase.from('productos')
+      .select('id, codigo, nombre, unidad_medida, permite_fraccion, unidades_medida(permite_fraccion)')
+      .eq('activo', true).order('nombre'),
     supabase.from('bodegas').select('id, nombre').eq('activa', true).order('nombre'),
   ]);
+
+  if (errProd) {
+    container.innerHTML = traducirErrorSupabase(errProd, 'productos');
+    return;
+  }
+
+  /** El producto elegido, aplanando la unidad que viene anidada. */
+  function productoActual() {
+    const p = (productos ?? []).find((x) => x.id === productoSelect.value);
+    if (!p) return null;
+    return {
+      ...p,
+      permite_fraccion: Boolean(p.unidades_medida?.permite_fraccion ?? p.permite_fraccion),
+    };
+  }
+
+  /**
+   * El campo de cantidad sigue la unidad del producto.
+   *
+   * Un ajuste de 0,002 fundas no existe, y hasta ahora el campo lo
+   * aceptaba: la regla estaba escrita en la caja y en el ingreso, pero
+   * no aquí. Ahora sale de un solo sitio (lib/cantidad.js).
+   */
+  function ajustarCampoCantidad() {
+    const p = productoActual();
+    if (!p) {
+      cantidadInput.min = '1';
+      cantidadInput.step = '1';
+      pistaUnidad.textContent = '';
+      return;
+    }
+    const r = aplicarReglaCantidad(cantidadInput, p);
+    pistaUnidad.textContent = r.ayuda;
+  }
 
   (productos ?? []).forEach((p) => {
     const opt = document.createElement('option');
@@ -85,9 +126,15 @@ export async function renderMovimientos(container) {
     }
   }
 
+  productoSelect.addEventListener('change', () => {
+    ajustarCampoCantidad();
+    updatePreview();
+  });
+
   [productoSelect, bodegaSelect, tipoSelect, cantidadInput, costoInput].forEach((el) =>
     el.addEventListener('input', updatePreview)
   );
+  ajustarCampoCantidad();
   tipoSelect.addEventListener('change', () => {
     costoInput.disabled = tipoSelect.value !== 'ENTRADA';
     if (costoInput.disabled) costoInput.value = '';
@@ -97,6 +144,20 @@ export async function renderMovimientos(container) {
   container.querySelector('#form-mov').addEventListener('submit', async (e) => {
     e.preventDefault();
     msg.textContent = '';
+
+    // La base rechaza el decimal en un producto por unidad con un
+    // mensaje técnico; se avisa antes, en castellano, y se ofrece el
+    // valor corregido en vez de dejar el formulario trabado.
+    const p = productoActual();
+    const ajuste = normalizar(Number(cantidadInput.value), p);
+    if (!ajuste.ok) {
+      msg.textContent = ajuste.mensaje;
+      msg.className = 'form-msg error';
+      cantidadInput.value = formatear(ajuste.cantidad, p);
+      updatePreview();
+      return;
+    }
+
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -105,7 +166,7 @@ export async function renderMovimientos(container) {
       producto_id: productoSelect.value,
       bodega_id: bodegaSelect.value,
       tipo: tipoSelect.value,
-      cantidad: Number(cantidadInput.value),
+      cantidad: ajuste.cantidad,
       costo_unitario: tipoSelect.value === 'ENTRADA' ? Number(costoInput.value || 0) : null,
       referencia: container.querySelector('#mov-referencia').value.trim() || null,
       usuario_id: user?.id ?? null,
@@ -119,6 +180,7 @@ export async function renderMovimientos(container) {
       msg.textContent = 'Movimiento registrado.';
       msg.className = 'form-msg ok';
       e.target.reset();
+      ajustarCampoCantidad();
       preview.classList.add('hidden');
     }
   });

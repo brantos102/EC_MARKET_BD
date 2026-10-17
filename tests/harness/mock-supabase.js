@@ -601,6 +601,10 @@
         producto: 'Papas Ruffles 140g' },
     ],
     ingreso_detalle: [],
+    inventario_saldos: [
+      { producto_id: 'prod-pollo', bodega_id: BODEGA, stock: 10, costo_promedio: 6 },
+      { producto_id: 'prod-pechuga', bodega_id: BODEGA, stock: 0, costo_promedio: 0 },
+    ],
     v_recepcion_vs_orden: [],
     ordenes_compra: [
       { id: 'oc-1', numero: 'OC-2026-00001', estado: 'ENVIADA', proveedor_id: 'prov-1',
@@ -608,8 +612,17 @@
     ],
     productos: [
       { id: 'prod-limon', codigo: 'FRU-013', nombre: 'Limón sutil', ean13: '7861000100014',
+        activo_mov: true,
         maneja_lote: false, unidad_medida: 'LB', paso_venta: 0.5, categoria_id: 'cat-fru',
         precio_venta_menor: 0.8, permite_fraccion: true, activo: true,
+        unidades_medida: { permite_fraccion: true } },
+      { id: 'prod-pollo', codigo: 'CAR-001', nombre: 'Pollo entero', ean13: null,
+        maneja_lote: false, unidad_medida: 'UND', paso_venta: 1, categoria_id: 'cat-car',
+        precio_venta_menor: 9.5, permite_fraccion: false, activo: true,
+        unidades_medida: { permite_fraccion: false } },
+      { id: 'prod-pechuga', codigo: 'CAR-002', nombre: 'Pechuga de pollo', ean13: null,
+        maneja_lote: false, unidad_medida: 'LB', paso_venta: 0.5, categoria_id: 'cat-car',
+        precio_venta_menor: 3.2, permite_fraccion: true, activo: true,
         unidades_medida: { permite_fraccion: true } },
       { id: 'prod-ruffles', codigo: 'SNK-001', nombre: 'Papas Ruffles 140g',
         ean13: '7861000100021', maneja_lote: false, unidad_medida: 'UND', paso_venta: 1,
@@ -617,6 +630,23 @@
         unidades_medida: { permite_fraccion: false } },
     ],
     proveedor_producto: [],
+    recetas: [
+      { id: 'rec-1', codigo: 'POLLO', nombre: 'Despiece de pollo', cantidad_origen: 1,
+        merma_esperada_pct: 8, activa: true, producto_origen_id: 'prod-pollo',
+        productos: { nombre: 'Pollo entero', unidad_medida: 'UND' } },
+    ],
+    receta_salida: [
+      { id: 'rs-1', receta_id: 'rec-1', producto_id: 'prod-pechuga', cantidad: 1.5,
+        productos: { codigo: 'CAR-002', nombre: 'Pechuga de pollo', unidad_medida: 'LB',
+                     precio_venta_menor: 3.2 } },
+    ],
+    v_transformaciones: [
+      { id: 'tr-1', numero: 'TR-2026-00001', fecha: '2026-10-16', estado: 'CONFIRMADA',
+        costo_total: 12, merma_cantidad: 0, merma_pct: null, receta: 'Despiece de pollo',
+        merma_esperada_pct: 8, bodega: 'Bodega Principal',
+        entro: '2 Pollo entero', salio: '3 Pechuga de pollo + 4 Pierna y muslo',
+        rendimiento: null },
+    ],
     proveedores: [
       { id: 'prov-1', ruc: '1790012345001', nombre_comercial: 'Distribuidora Andina',
         razon_social: 'DISTRIBUIDORA ANDINA S.A.', activo: true },
@@ -742,6 +772,20 @@
 
   async function rpc(nombre, args) {
     // --- Migración 015 ---
+    if (nombre === 'fn_preparar_transformacion') {
+      return { data: [
+        { producto_id: 'prod-pollo', producto: 'Pollo entero', unidad: 'UND',
+          cantidad: Number(args.p_cantidad), precio_venta: 9.5, valor_venta: null, es_origen: true },
+        { producto_id: 'prod-pechuga', producto: 'Pechuga de pollo', unidad: 'LB',
+          cantidad: 1.5 * Number(args.p_cantidad), precio_venta: 3.2,
+          valor_venta: 4.8 * Number(args.p_cantidad), es_origen: false },
+      ], error: null };
+    }
+    if (nombre === 'fn_ejecutar_transformacion') {
+      window.__ESCRITURAS.push({ tabla: 'rpc:fn_ejecutar_transformacion', operacion: 'rpc', payload: args });
+      return { data: [{ estado: 'OK', mensaje: 'TR-2026-00002: costo repartido.',
+        transformacion_id: 'tr-2', costo_total: 12 }], error: null };
+    }
     if (nombre === 'fn_traducir_factura') {
       // Refleja lo que hace la base: lo ya emparejado entra solo, el
       // código de barras de la factura reconoce el producto, y un

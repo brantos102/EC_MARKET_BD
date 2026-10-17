@@ -26,6 +26,7 @@ const RESPALDO = [
   { codigo: 'caducidades', nombre: 'Caducidades',           grupo: 'Bodega',    icono: 'reloj',     orden: 50 },
   { codigo: 'kardex',      nombre: 'Kardex',                grupo: 'Bodega',    icono: 'libro',     orden: 60 },
   { codigo: 'movimientos', nombre: 'Ajuste manual',         grupo: 'Bodega',    icono: 'ajuste',    orden: 70 },
+  { codigo: 'transformaciones', nombre: 'Transformar productos', grupo: 'Bodega', icono: 'ajuste', orden: 75 },
   { codigo: 'productos',   nombre: 'Productos',             grupo: 'Catálogo',  icono: 'caja',      orden: 80 },
   { codigo: 'promociones', nombre: 'Promociones',           grupo: 'Catálogo',  icono: 'etiqueta',  orden: 90 },
   { codigo: 'bodegas',     nombre: 'Bodegas',               grupo: 'Catálogo',  icono: 'almacen',   orden: 100 },

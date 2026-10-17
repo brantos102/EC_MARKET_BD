@@ -1525,6 +1525,112 @@ with sync_playwright() as p:
     pagina.click(".modal-pie button:first-child")
     pagina.wait_for_timeout(300)
 
+    # ---------------------------------------------------------
+    # La regla de la unidad tiene que ser UNA para todo el sistema. El
+    # ajuste manual la tenia escrita aparte y aceptaba 0,002 fundas.
+    # ---------------------------------------------------------
+    # Despiece: entra un pollo entero y salen presas. Lo que importa
+    # aqui es el reparto del costo: por VALOR DE VENTA y no por peso.
+    # Repartido por peso, la libra de hueso costaria lo mismo que la de
+    # pechuga y el margen de todo el negocio saldria falso.
+    print("\n--- Transformar productos: despiece con reparto de costo")
+    pagina.evaluate("location.hash = '#transformaciones'")
+    pagina.wait_for_selector("#tr-entradas", timeout=10000)
+    pagina.wait_for_timeout(600)
+
+    revisar("se puede partir de una receta guardada",
+            pagina.eval_on_selector("#tr-receta", "el => el.options.length") > 1)
+
+    pagina.click("#tr-cargar")
+    pagina.wait_for_timeout(700)
+    revisar("la receta carga lo que entra y lo que sale",
+            pagina.eval_on_selector_all("#tr-entradas .tr-linea", "e => e.length") == 1
+            and pagina.eval_on_selector_all("#tr-salidas .tr-linea", "e => e.length") == 1)
+    revisar("y avisa de que hay que corregir con lo que salio de la balanza",
+            "balanza" in pagina.inner_text("#tr-msg"),
+            f"(dice '{pagina.inner_text('#tr-msg')}')")
+
+    # Se arma a mano el despiece completo: 2 pollos -> pechuga + pierna
+    pagina.eval_on_selector("#tr-entradas .tr-linea [data-cant]",
+                            "el => { el.value = '2'; el.dispatchEvent(new Event('input')); }")
+    pagina.eval_on_selector("#tr-salidas .tr-linea [data-cant]",
+                            "el => { el.value = '3'; el.dispatchEvent(new Event('input')); }")
+    pagina.wait_for_timeout(500)
+
+    resumen = pagina.inner_text("#tr-resumen")
+    revisar("se ve el costo de lo que entra antes de confirmar",
+            "12.00" in resumen, f"(dice '{resumen[:120]}')")
+    revisar("y cuanto absorbe cada salida",
+            "Absorbe" in resumen and "100.0 %" in resumen,
+            f"(dice '{resumen[:160]}')")
+    revisar("con el costo por unidad ya calculado",
+            "$4.0000" in resumen, f"(dice '{resumen[:200]}')")
+
+    # Un producto que entra por unidad no admite medio pollo
+    paso_ent = pagina.eval_on_selector("#tr-entradas .tr-linea [data-cant]", "el => el.step")
+    revisar("el pollo entero se cuenta por unidades enteras",
+            paso_ent == "1", f"(step={paso_ent})")
+    paso_sal = pagina.eval_on_selector("#tr-salidas .tr-linea [data-cant]", "el => el.step")
+    revisar("pero las presas salen con el decimal de la balanza",
+            paso_sal == "0.001", f"(step={paso_sal})")
+
+    revisar("se avisa de lo que hay en existencia antes de transformar",
+            "hay 10" in pagina.inner_text("#tr-entradas"),
+            f"({pagina.inner_text('#tr-entradas')[:100]})")
+
+    pagina.click("#tr-ejecutar")
+    pagina.wait_for_timeout(800)
+    tr = next((e for e in pagina.evaluate("window.__ESCRITURAS")
+               if e["tabla"] == "rpc:fn_ejecutar_transformacion"), None)
+    revisar("la transformacion se registra contra la base",
+            tr is not None and tr["payload"]["p_entradas"][0]["cantidad"] == 2,
+            f"({tr['payload'] if tr else 'no se llamo'})")
+    revisar("con lo que entra y lo que sale por separado",
+            tr is not None and len(tr["payload"]["p_salidas"]) == 1)
+
+    pagina.click('.tab[data-tab="historial"]')
+    pagina.wait_for_selector("#tabla-transf .dyn-table", timeout=6000)
+    pagina.wait_for_timeout(400)
+    revisar("el historial muestra que entro y que salio",
+            "Pollo entero" in pagina.inner_text("#tabla-transf"))
+    revisar("y el historial se puede exportar para auditoria",
+            pagina.is_visible("#exp-transf"))
+
+    print("\n--- Ajuste manual: la misma regla de cantidad que en todo el sistema")
+    pagina.evaluate("location.hash = '#movimientos'")
+    pagina.wait_for_selector("#mov-cantidad", timeout=8000)
+    pagina.wait_for_timeout(500)
+
+    def elegir_producto(nombre):
+        pagina.eval_on_selector("#mov-producto", """el => {
+          el.value = [...el.options].find(o => o.textContent.includes('%s')).value;
+          el.dispatchEvent(new Event('change'));
+        }""" % nombre)
+        pagina.wait_for_timeout(300)
+
+    elegir_producto("Ruffles")      # se despacha por unidad
+    revisar("un producto por unidad no admite decimales en el ajuste",
+            pagina.eval_on_selector("#mov-cantidad", "el => el.step") == "1"
+            and pagina.eval_on_selector("#mov-cantidad", "el => el.min") == "1",
+            f"(min={pagina.eval_on_selector('#mov-cantidad', 'el => el.min')}, "
+            f"step={pagina.eval_on_selector('#mov-cantidad', 'el => el.step')})")
+    revisar("0.002 queda como valor invalido para ese producto",
+            not pagina.eval_on_selector("#mov-cantidad",
+                "el => { el.value = '0.002'; return el.checkValidity(); }"))
+    revisar("y la pantalla dice en que unidad se despacha",
+            "entera" in pagina.inner_text("#mov-unidad"),
+            f"(dice '{pagina.inner_text('#mov-unidad')}')")
+
+    elegir_producto("Limón")        # se vende por libra
+    revisar("lo que se pesa si admite el decimal de la balanza",
+            pagina.eval_on_selector("#mov-cantidad", "el => el.step") == "0.001")
+    revisar("2.35 es valido en algo que se pesa",
+            pagina.eval_on_selector("#mov-cantidad",
+                "el => { el.value = '2.35'; return el.checkValidity(); }"))
+    revisar("y se avisa de que admite decimales porque se pesa",
+            "decimales" in pagina.inner_text("#mov-unidad"),
+            f"(dice '{pagina.inner_text('#mov-unidad')}')")
+
     print("\n--- Otras pantallas cargan sin romperse")
     for ruta, selector in [
         ("#caducidades", ".kpi-row"),

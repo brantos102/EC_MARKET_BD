@@ -100,3 +100,46 @@ function unidadSingular(producto) {
   const n = (producto?.unidad_nombre ?? 'unidad').toLowerCase();
   return n;
 }
+
+/**
+ * Aplica la regla de la unidad a un campo <input type="number">.
+ *
+ * POR QUÉ ESTÁ AQUÍ Y NO EN CADA PANTALLA. La regla se escribió tres
+ * veces —caja, ingreso, ajuste manual— y la tercera se escribió mal:
+ * el ajuste manual quedó aceptando milésimas en productos que se
+ * despachan por unidad, así que se podía registrar un ajuste de 0,002
+ * fundas. Una regla en tres sitios es tres reglas.
+ *
+ * EL DETALLE QUE IMPORTA: el mínimo y el paso se fijan SIEMPRE juntos.
+ * El navegador no cuenta los pasos desde cero, los cuenta desde el
+ * mínimo, así que min="0.0001" con step="1" solo admite 1,0001 · 2,0001…
+ * Ese fue el origen del "1.0001" que aparecía en pantalla.
+ *
+ * @param {HTMLInputElement} campo
+ * @param {{permite_fraccion?: boolean, unidad_medida?: string, unidades_medida?: object}} producto
+ * @param {{minimoCero?: boolean}} [opciones] minimoCero para campos que admiten 0
+ * @returns {{fracciona: boolean, unidad: string, ayuda: string}}
+ */
+export function aplicarReglaCantidad(campo, producto, opciones = {}) {
+  const unidad = producto?.unidad_medida ?? producto?.unidad ?? 'unidad';
+  const parte = fracciona(producto);
+
+  if (parte) {
+    // Lo que se pesa o se mide: kilo, libra, gramo, litro. Entra lo que
+    // marque la balanza, con la milésima como grano más fino.
+    campo.step = '0.001';
+    campo.min = opciones.minimoCero ? '0' : '0.001';
+    campo.inputMode = 'decimal';
+  } else {
+    // Unidad, funda, docena, gaveta: no existe media funda.
+    campo.step = '1';
+    campo.min = opciones.minimoCero ? '0' : '1';
+    campo.inputMode = 'numeric';
+  }
+
+  const ayuda = parte
+    ? `${unidad} — admite decimales (se pesa o se mide)`
+    : `${unidad} entera — no admite decimales`;
+  campo.title = ayuda;
+  return { fracciona: parte, unidad, ayuda };
+}
