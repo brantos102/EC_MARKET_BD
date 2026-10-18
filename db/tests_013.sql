@@ -154,13 +154,21 @@ begin
   raise notice '';
   raise notice 'Vistas consultadas sin error: %', v_leidas;
 
-  -- Estas cuatro sí pueden estar vacías en una base recién sembrada:
-  -- no hay ventas, ni servicios, ni órdenes, ni productos bajo mínimo.
+  -- Estas sí pueden estar vacías en una base recién sembrada, porque
+  -- todavía no ha pasado nada que llenarlas: no hay ventas, ni
+  -- servicios, ni comprobantes emitidos, ni productos bajo mínimo, ni
+  -- despieces hechos. Una vista vacía por falta de DATOS no se puede
+  -- distinguir aquí de una vacía por falta de POLÍTICA, así que cada
+  -- una de estas se comprueba con datos en la prueba de su migración:
+  -- v_transformaciones en tests_018 (comprobación 18), leyéndola como
+  -- cajero y con el RLS puesto. Antes de sacar una vista de esta lista,
+  -- asegúrese de que su prueba la cubre allá.
   v_vacias := array(
     select x from unnest(v_vacias) x
     where x not in ('v_ventas_resumen', 'v_productos_mas_vendidos',
                     'v_resumen_mensual', 'v_servicios_detalle',
-                    'v_sugerencia_reposicion', 'v_comprobante'));
+                    'v_sugerencia_reposicion', 'v_comprobante',
+                    'v_transformaciones'));
 
   if array_length(v_vacias, 1) > 0 then
     raise exception

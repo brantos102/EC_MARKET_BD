@@ -331,6 +331,73 @@ begin
   end if;
 end $$;
 
+-- ---------------------------------------------------------
+-- 18. La pantalla del historial tiene que ver la transformación.
+--
+-- La prueba 17 leyó la vista como superusuario, y eso no prueba nada:
+-- el superusuario se salta el RLS. Si a `transformaciones` le faltara
+-- la política de lectura, la pantalla de Historial saldría en blanco
+-- para el cajero y aquí seguiría pasando.
+--
+-- Esta comprobación vive aquí y no en tests_013 porque tests_013 corre
+-- sobre una base recién sembrada, donde todavía no se ha transformado
+-- nada: una vista vacía por falta de datos no se distingue de una vacía
+-- por falta de política. Aquí sí hay datos, así que la distinción es
+-- real. Por eso v_transformaciones está en la lista de vistas que
+-- tests_013 admite vacías: la cobertura no se pierde, se mueve.
+--
+-- El cambio de rol va dentro de una transacción a propósito: fuera de
+-- ella PostgreSQL avisa y NO cambia el rol, y la prueba correría como
+-- superusuario pasando siempre sin probar nada.
+-- ---------------------------------------------------------
+do $$
+declare v_id uuid;
+begin
+  -- Se reutiliza si ya existe: borrarlo rompería las claves foráneas
+  -- del kardex de una corrida anterior.
+  if not exists (select 1 from auth.users where email = 'vistas-transf@prueba.ec') then
+    insert into auth.users (id, email) values (gen_random_uuid(), 'vistas-transf@prueba.ec');
+  end if;
+  select id into v_id from auth.users where email = 'vistas-transf@prueba.ec';
+  insert into perfiles_usuario (usuario_id, nombre, rol)
+  values (v_id, 'Cajero de transformaciones', 'VENDEDOR')
+  on conflict (usuario_id) do update set rol = 'VENDEDOR', nombre = excluded.nombre;
+end $$;
+
+begin;
+
+set local role app_vistas;
+select set_config('request.jwt.claim.sub',
+                  (select usuario_id::text from perfiles_usuario
+                    where nombre = 'Cajero de transformaciones'), true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+
+do $$
+declare
+  v_filas int;
+  v_r     record;
+begin
+  select count(*) into v_filas from v_transformaciones;
+  if v_filas = 0 then
+    raise exception 'FALLA 18: el historial de transformaciones sale en blanco para un '
+      'usuario normal. Falta política de lectura en transformaciones, '
+      'transformacion_entrada o transformacion_salida.';
+  end if;
+
+  -- Y que lo que ve sea útil, no una fila con todo en blanco.
+  select entro, salio, costo_total into v_r from v_transformaciones
+   where observacion = 'Despiece de prueba' limit 1;
+  if v_r.entro is null or v_r.salio is null or coalesce(v_r.costo_total, 0) = 0 then
+    raise exception 'FALLA 18: el cajero ve la fila pero sin detalle (% / % / %). '
+      'Las políticas de las tablas de detalle no lo dejan leer.',
+      v_r.entro, v_r.salio, v_r.costo_total;
+  end if;
+
+  raise notice 'tests_018: comprobación 18 correcta (% filas visibles con RLS)', v_filas;
+end $$;
+
+rollback;
+
 -- Limpieza
 delete from transformacion_salida where transformacion_id in
   (select id from transformaciones where observacion in ('Despiece de prueba', 'Limpieza'));

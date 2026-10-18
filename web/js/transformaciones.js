@@ -23,6 +23,7 @@ import { abrirModal, cerrarModal } from './lib/modal.js';
 import { traducirErrorSupabase } from './lib/errores.js';
 import { aplicarReglaCantidad } from './lib/cantidad.js';
 import { botonesExportar, conectarExportar, metaDeEmpresa } from './lib/exportar.js';
+import { empresaActual } from './lib/marca.js';
 
 export async function renderTransformaciones(container) {
   container.innerHTML = `
@@ -518,7 +519,7 @@ export async function renderTransformaciones(container) {
       <div class="panel">
         <div class="panel-head">
           <h3>Transformaciones realizadas</h3>
-          ${botonesExportar('exp-transf')}
+          ${botonesExportar('transf')}
         </div>
         <p class="nota">La columna <b>rendimiento</b> compara la merma real con la esperada de
         la receta. Un despiece que rinde menos de la cuenta, y siempre el mismo, es lo primero
@@ -552,13 +553,10 @@ export async function renderTransformaciones(container) {
       emptyMessage: 'Todavía no se ha transformado nada.',
     });
 
-    conectarExportar('exp-transf', {
-      nombre: 'transformaciones',
-      titulo: 'Transformaciones de producto',
-      columnas,
-      filas: () => data ?? [],
-      meta: await metaDeEmpresa(),
-    });
+    conectarExportar(destino, 'transf',
+      () => ({ columnas, filas: data ?? [] }),
+      'Transformaciones de producto',
+      () => metaDeEmpresa(empresaActual()));
   }
 }
 

@@ -1541,11 +1541,21 @@ with sync_playwright() as p:
     revisar("se puede partir de una receta guardada",
             pagina.eval_on_selector("#tr-receta", "el => el.options.length") > 1)
 
+    pagina.eval_on_selector("#tr-receta", """el => {
+      el.value = [...el.options].find(o => o.textContent.includes('Despiece')).value;
+      el.dispatchEvent(new Event('change'));
+    }""")
     pagina.click("#tr-cargar")
     pagina.wait_for_timeout(700)
+    # No basta con contar las líneas: la pantalla arranca con una línea
+    # en blanco a cada lado, así que contarlas daría 1 y 1 aunque la
+    # receta no hubiera cargado nada. Hay que ver QUE cargó.
     revisar("la receta carga lo que entra y lo que sale",
             pagina.eval_on_selector_all("#tr-entradas .tr-linea", "e => e.length") == 1
-            and pagina.eval_on_selector_all("#tr-salidas .tr-linea", "e => e.length") == 1)
+            and pagina.eval_on_selector_all("#tr-salidas .tr-linea", "e => e.length") == 1
+            and "Pollo entero" in pagina.inner_text("#tr-entradas")
+            and "Pechuga" in pagina.inner_text("#tr-salidas"),
+            f"(entra: {pagina.inner_text('#tr-entradas')[:80]})")
     revisar("y avisa de que hay que corregir con lo que salio de la balanza",
             "balanza" in pagina.inner_text("#tr-msg"),
             f"(dice '{pagina.inner_text('#tr-msg')}')")
@@ -1594,7 +1604,16 @@ with sync_playwright() as p:
     revisar("el historial muestra que entro y que salio",
             "Pollo entero" in pagina.inner_text("#tabla-transf"))
     revisar("y el historial se puede exportar para auditoria",
-            pagina.is_visible("#exp-transf"))
+            len(pagina.query_selector_all(
+                '#tab-historial .btn-exp[data-exp-id="transf"]')) == 3)
+    # Que el boton exista no dice nada: el archivo se descarga y se lee.
+    with pagina.expect_download(timeout=15000) as descarga_tr:
+        pagina.click('#tab-historial .btn-exp[data-formato="csv"][data-exp-id="transf"]')
+    with open(descarga_tr.value.path(), "r", encoding="utf-8-sig") as f:
+        csv_tr = f.read()
+    revisar("y el archivo trae la transformacion con su costo",
+            "TR-2026-00001" in csv_tr and "12" in csv_tr,
+            f"({csv_tr[:120]})")
 
     print("\n--- Ajuste manual: la misma regla de cantidad que en todo el sistema")
     pagina.evaluate("location.hash = '#movimientos'")
