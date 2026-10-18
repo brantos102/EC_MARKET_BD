@@ -73,7 +73,9 @@ un backend propio, no puede hacerse desde el navegador (la clave privada del
 
 ### 1. Aplicar las migraciones en Supabase
 
-En el proyecto de Supabase → **SQL Editor** → pegar y ejecutar **en orden**:
+En el proyecto de Supabase → **SQL Editor** → pegar y ejecutar **en orden**.
+Si prefiere hacerlo desde la terminal con `psql` —más rápido y se detiene en
+el primer error—, los pasos exactos están en **[`db/COMO_APLICAR.md`](db/COMO_APLICAR.md)**.
 
 | # | Archivo | Qué crea |
 |---|---|---|
@@ -95,6 +97,7 @@ En el proyecto de Supabase → **SQL Editor** → pegar y ejecutar **en orden**:
 | 15 | `db/015_presentaciones_codigos.sql` | Presentaciones de compra con factor de conversión (caja → unidad), **todos** los códigos de barras de cada producto, cotejo de recepción y sugerencia de precios |
 | 16 | `db/016_plano_editable.sql` | Medidas del local, calles, y movimiento de muebles con control de solape |
 | 17 | `db/017_facturas_proveedor.sql` | Ingreso desde el XML de la factura del proveedor y equivalencias aprendidas por proveedor |
+| 18 | `db/018_transformaciones.sql` | Despiece y maquila: un pollo entero sale en presas, con el costo repartido por valor de venta (NIC 2) y la merma registrada |
 
 Si aparece el error *"new row violates row-level security policy"* y no puedes
 aplicar la 008 completa, ejecuta **`db/FIX_RLS_URGENTE.sql`**: es el arreglo

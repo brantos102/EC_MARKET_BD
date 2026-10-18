@@ -63,6 +63,26 @@ grant execute on all functions in schema public to app_vendedor, app_admin;
 grant usage on schema auth to app_vendedor, app_admin;
 grant execute on all functions in schema auth to app_vendedor, app_admin;
 
+-- La comprobación 2 necesita un producto SIN saldo previo: es la rama
+-- INSERT del disparador del kardex la que prueba. Si esta suite ya
+-- corrió antes sobre esta base, el producto quedó con 10 unidades y la
+-- segunda corrida llegaba a 20 y fallaba —no porque el sistema
+-- estuviera mal, sino porque la prueba no se podía repetir. Así que se
+-- lo deja como si nunca hubiera existido, y esto va aquí arriba a
+-- propósito: más abajo la sesión ya cambió a app_admin, que no es dueño
+-- de la tabla y no puede soltar el candado. El kardex es inmutable
+-- adrede; en producción nadie hace esto, para corregir está el ajuste.
+do $$
+declare v_prod uuid;
+begin
+  select id into v_prod from productos where codigo = 'TEST-RLS-001';
+  if v_prod is null then return; end if;
+  alter table movimientos_inventario disable trigger user;
+  delete from movimientos_inventario where producto_id = v_prod;
+  alter table movimientos_inventario enable trigger user;
+  delete from inventario_saldos where producto_id = v_prod;
+end $$;
+
 \echo ''
 \echo '=== PRUEBAS CON RLS APLICADO ==='
 
@@ -98,6 +118,8 @@ end $$;
 -- 2. Un producto sin saldo previo también funciona (rama INSERT)
 -- ---------------------------------------------------------
 \echo '--- 2. Un producto sin saldo previo puede recibir su primer movimiento'
+-- El producto llega aquí sin saldo: lo dejó así el bloque de limpieza
+-- de más arriba, que corre antes del cambio de rol.
 do $$
 declare v_prod uuid; v_bod uuid; v_stock numeric;
 begin

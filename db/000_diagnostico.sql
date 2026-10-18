@@ -96,7 +96,14 @@ with esperado (orden, archivo, objeto, tipo) as (
     (16, 'db/016_plano_editable.sql',        'estructuras.calle',        'columna'),
     -- 017 --------------------------------------------------
     (17, 'db/017_facturas_proveedor.sql',    'proveedor_producto',       'tabla'),
-    (17, 'db/017_facturas_proveedor.sql',    'documentos_ingreso.clave_acceso', 'columna')
+    (17, 'db/017_facturas_proveedor.sql',    'documentos_ingreso.clave_acceso', 'columna'),
+    -- 018 --------------------------------------------------
+    (18, 'db/018_transformaciones.sql',      'recetas',                  'tabla'),
+    (18, 'db/018_transformaciones.sql',      'receta_salida',            'tabla'),
+    (18, 'db/018_transformaciones.sql',      'transformaciones',         'tabla'),
+    (18, 'db/018_transformaciones.sql',      'transformacion_entrada',   'tabla'),
+    (18, 'db/018_transformaciones.sql',      'transformacion_salida',    'tabla'),
+    (18, 'db/018_transformaciones.sql',      'v_transformaciones',       'vista')
 ),
 estado as (
   select
@@ -194,7 +201,11 @@ begin
         (16,'db/016_plano_editable.sql','sedes.ancho_local_cm'),
         (16,'db/016_plano_editable.sql','estructuras.calle'),
         (17,'db/017_facturas_proveedor.sql','proveedor_producto'),
-        (17,'db/017_facturas_proveedor.sql','documentos_ingreso.clave_acceso')
+        (17,'db/017_facturas_proveedor.sql','documentos_ingreso.clave_acceso'),
+        (18,'db/018_transformaciones.sql','recetas'),
+        (18,'db/018_transformaciones.sql','transformaciones'),
+        (18,'db/018_transformaciones.sql','transformacion_salida'),
+        (18,'db/018_transformaciones.sql','v_transformaciones')
     )
     select e.orden, e.archivo,
            count(*) as total,

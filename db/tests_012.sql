@@ -16,6 +16,8 @@ declare
   v_prod uuid;
   v_codigo text;
   v_n int;
+  v_literal text;
+  v_sede uuid;
 begin
   -- -------------------------------------------------------
   -- 1. La sede tiene código de nave
@@ -114,9 +116,21 @@ begin
   perform set_config('request.jwt.claim.sub', v_usuario::text, true);
 
   v_id := fn_crear_estructura('FRIGORIFICO', 'Frigorífico nuevo de prueba');
-  if (select literal from estructuras where id = v_id) <> 'FR3' then
-    raise exception 'FALLA 7: el literal automático debió ser FR3, fue %',
-      (select literal from estructuras where id = v_id);
+  select literal, sede_id into v_literal, v_sede from estructuras where id = v_id;
+
+  -- Antes esto exigía literalmente 'FR3', que es lo que sale en una base
+  -- recién sembrada con FR1 y FR2. Al correr la prueba dos veces sobre la
+  -- misma base salía FR4 y la prueba se ponía roja sin que nada estuviera
+  -- mal. Lo que de verdad hay que comprobar es la REGLA: prefijo del tipo
+  -- más el primer número libre, sin dejar huecos por debajo.
+  if v_literal !~ '^FR[0-9]+$' then
+    raise exception 'FALLA 7: el literal automático no tiene la forma FR<n>, fue %', v_literal;
+  end if;
+  if exists (
+    select 1 from generate_series(1, substring(v_literal from 3)::int - 1) k
+    where not exists (select 1 from estructuras
+                       where sede_id = v_sede and literal = 'FR' || k)) then
+    raise exception 'FALLA 7: el literal % saltó un número libre por debajo', v_literal;
   end if;
   if (select count(*) from ubicaciones where estructura_id = v_id) = 0 then
     raise exception 'FALLA 7b: no se generaron las posiciones';
@@ -350,5 +364,18 @@ begin
     raise exception 'No pasaron todas las pruebas';
   end if;
 end $$;
+
+-- Limpieza: los dos muebles que creó la prueba se van.
+-- Si se quedaran, cada corrida añadiría un frigorífico más y se comería
+-- una letra del abecedario de las estanterías, hasta agotarlo. Las
+-- posiciones se borran antes porque las referencian.
+delete from producto_ubicacion where ubicacion_id in (
+  select u.id from ubicaciones u join estructuras e on e.id = u.estructura_id
+   where e.nombre in ('Frigorífico nuevo de prueba', 'Percha nueva de prueba'));
+delete from ubicaciones where estructura_id in (
+  select id from estructuras
+   where nombre in ('Frigorífico nuevo de prueba', 'Percha nueva de prueba'));
+delete from estructuras
+ where nombre in ('Frigorífico nuevo de prueba', 'Percha nueva de prueba');
 
 select 'tests_012: OK' as resultado;

@@ -80,6 +80,13 @@ const MIGRACION_POR_TABLA = {
   v_recepcion_vs_orden: '015_presentaciones_codigos.sql',
 
   proveedor_producto: '017_facturas_proveedor.sql',
+
+  recetas: '018_transformaciones.sql',
+  receta_salida: '018_transformaciones.sql',
+  transformaciones: '018_transformaciones.sql',
+  transformacion_entrada: '018_transformaciones.sql',
+  transformacion_salida: '018_transformaciones.sql',
+  v_transformaciones: '018_transformaciones.sql',
 };
 
 /**
@@ -129,6 +136,9 @@ const MIGRACION_POR_FUNCION = {
 
   fn_vincular_producto_proveedor: '017_facturas_proveedor.sql',
   fn_traducir_factura: '017_facturas_proveedor.sql',
+
+  fn_preparar_transformacion: '018_transformaciones.sql',
+  fn_ejecutar_transformacion: '018_transformaciones.sql',
 };
 
 // v_comprobante se rehace en la 014 para llevar el ancho del rollo, así
@@ -159,6 +169,7 @@ const ORDEN_MIGRACIONES = [
   '015_presentaciones_codigos.sql',
   '016_plano_editable.sql',
   '017_facturas_proveedor.sql',
+  '018_transformaciones.sql',
 ];
 
 /** Migraciones desde la que crea la tabla que falta, en adelante. */

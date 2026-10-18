@@ -36,4 +36,5 @@ aplicar db/014_impresion_termica.sql
 aplicar db/015_presentaciones_codigos.sql
 aplicar db/016_plano_editable.sql
 aplicar db/017_facturas_proveedor.sql
-echo "OK — migraciones 001-017 aplicadas sin error"
+aplicar db/018_transformaciones.sql
+echo "OK — migraciones 001-018 aplicadas sin error"
